@@ -18,8 +18,13 @@ public class GameWindow extends JPanel implements Runnable {
     int FPS = 144;
     
     KeyHandler keyH = new KeyHandler();
-    
+    MouseHandler mouseH = new MouseHandler();
 
+    /*
+     * Assembly checks
+     */
+    static boolean buretteConnected = false;
+    static boolean beakerConnected = false; 
 
     /*
      * Container
@@ -30,8 +35,8 @@ public class GameWindow extends JPanel implements Runnable {
     /*
      * Particles
      */
-    final int NUMPARTICLES = 10;
-    Particle particles[] = new Particle[NUMPARTICLES]; 
+    final static int NUMPARTICLES = 10;
+    static Particle particles[] = new Particle[NUMPARTICLES]; 
 
     /*
      * More Window Settings
@@ -42,6 +47,7 @@ public class GameWindow extends JPanel implements Runnable {
         this.setDoubleBuffered(true);
         this.setFocusable(true);
         this.addKeyListener(keyH);
+        this.addMouseListener(mouseH);
     }
 
     /*
@@ -104,7 +110,17 @@ public class GameWindow extends JPanel implements Runnable {
      * Game updates run here
      */
     public void update(double deltaTime) {
-        ;
+        for(Particle p : particles){
+            p.computePosition(container, deltaTime);
+        }
+
+        /*
+         * Mouse Interactions
+         */
+        if(MouseHandler.getSelected() != null){
+            Particle temp = MouseHandler.getSelected();
+            temp.setCurrentPos(MouseHandler.getMouseVector());
+        }
     }
 
     /*
