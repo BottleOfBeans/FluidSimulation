@@ -21,7 +21,7 @@ public class GameWindow extends JPanel implements Runnable {
      //Establishes the Cell Divisions and Size
 
     // 50x50 cells;
-    static int amountOfCells = 10;
+    public static int amountOfCells = 10;
     
     static Cell[][] cells = new Cell[amountOfCells][amountOfCells];
 
@@ -94,36 +94,71 @@ public class GameWindow extends JPanel implements Runnable {
                     j*cellWidth, //Upper Left X Coord
                     i*cellHeight, //Upper Left Y Coord
                     cellWidth, //Cell Width
-                    cellHeight //Cell Height
+                    cellHeight, //Cell Height
+                    i,
+                    j
                 );
-                if (i==0 || j==0 || i==cells.length-1 || j==cells[i].length-1){
-                    cells[i][j].borderCell = true;
-                }else{
-                    cells[i][j].borderCell = false;
-                }
             }
         }
     }
 
     public void visualizeCells(Graphics2D graphics) {
         graphics.setColor(Color.RED);
+        
+        /* Debug Cell Setup */
+        /* 
         for(Cell[] row : cells){
             for(Cell c : row){
                 if(c.borderCell){
                     graphics.setColor(Color.GRAY);
+                    if(c.cornerCell){
+                        graphics.setColor(Color.DARK_GRAY);
+                    }
                     graphics.fill(c.getCell());
                 }
                 else{
-                    graphics.setColor(Color.WHITE);
+                    graphics.setColor(Color.LIGHT_GRAY);
+                    graphics.fill(c.getCell());
+                }
+                graphics.setColor(Color.BLACK);
+                graphics.draw(c.getCell());
+            }
+        }
+        */
+
+        /*
+         * Actually Visualize the Cells Better
+         */
+        for(Cell Row[] :cells){
+            for(Cell c : Row){
+                if(c != null){
+
+                    /*
+                     * Update Cell
+                     */
+                    c.update((float) deltaTime);
+
+                    //Fill the cell with the color nessecary
+                    graphics.setColor((Color) c.getColor());
+                    graphics.fill(c.getCell());
+
+                    //Fill the outline of the cell with black!
+                    graphics.setColor(Color.BLACK);
                     graphics.draw(c.getCell());
+
+                    // Draw Velocity Lines
+                    graphics.setColor(Color.white);
+                    graphics.draw(c.getVelocityLine());
+
+                    //Draw Debug Strings
+                    c.debugString(graphics);
                 }
             }
         }
     }
 
     public void update(double dt){
-        //Update all the things that need to be updated
-
+        ;
     }
 
     // Function that paints the updated version of the frame {FPS} times a second.
