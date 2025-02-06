@@ -1,6 +1,4 @@
 import java.awt.*;
-import java.awt.geom.Ellipse2D;
-import java.util.ArrayList;
 import javax.swing.*;
 
 public class GameWindow extends JPanel implements Runnable {
@@ -21,7 +19,7 @@ public class GameWindow extends JPanel implements Runnable {
      //Establishes the Cell Divisions and Size
 
     // 50x50 cells;
-    public static int amountOfCells = 10;
+    public static int amountOfCells = 100;
     
     static Cell[][] cells = new Cell[amountOfCells][amountOfCells];
 

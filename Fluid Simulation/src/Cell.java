@@ -1,7 +1,6 @@
 import java.awt.*;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
-import java.util.Vector;
 
 /*
  * Main Ideas
@@ -31,10 +30,12 @@ import java.util.Vector;
 
 public class Cell extends GameWindow{
 
-    final Vector2 GRAVITY = new Vector2(0, .5f);
-    final float VELOCITY_LINE_SCALE = .2f;
+    final Vector2 GRAVITY = new Vector2(0f, 0f);
+    final float VELOCITY_LINE_SCALE = 100f;
     final int MAX_VECTOR_LINE = 100;
-    final float WIND_TUNNEL_SPEED = 10;
+    final float WIND_TUNNEL_SPEED = 5;
+    final int COLOR_SCALE = 1;
+    final float DENSITY = 1;
 
     Vector2 velocity = new Vector2(0,0);
     Vector2 pos;
@@ -49,10 +50,11 @@ public class Cell extends GameWindow{
     int s = 1; //Scalar Value Determining If Fluid or Not!
     boolean sourceBlock = false;
 
-    Vector2 d;
+    Vector2 d = new Vector2(0,0);
+    Vector2 p = new Vector2(0,0);
 
     float v; 
-    float p;
+    
     float u;
 
 
@@ -62,22 +64,23 @@ public class Cell extends GameWindow{
         if(pos.x == 0 || pos.y == 0 || pos.x == cells[0].length - 1 || pos.y == cells.length -1){
             s = 0;
         }
+        if(pos.x == 1 && s == 1){
+            sourceBlock = true;
+        }
     }
 
     public void update(float dt){
 
-        System.out.println(dt);
-
         //1. Apply Forces
         applyForces(dt);
-
+        
         //2. Make Incompressible
-        solveIncompressible();
+        solveIncompressible(dt);
+        solvePressure(dt);
 
         //3. Move the Velocity Field
-        
+        solveVelocity(dt);
     }
-
 
     public void applyForces(float dt){
         if(!sourceBlock){
@@ -85,27 +88,61 @@ public class Cell extends GameWindow{
         }
     }
 
-    public void solveIncompressible(){
+    public void solveIncompressible(float dt) throws NullPointerException{
+        if(s == 0){return;}
         
-        if(s==0){return;}
+        Cell upperCell = cells[(int) pos.y - 1][(int) pos.x];
+        Cell lowerCell = cells[(int) pos.y + 1][(int) pos.x];
+        Cell rightCell = cells[(int) pos.y][(int) pos.x + 1];
+        Cell leftCell = cells[(int) pos.y][(int) pos.x - 1];
 
-        // Top - Bottom + Right - Left
-        d = top.subtract(bottom).add(right.subtract(left)); // Calculating Divergence as Vector2
+        if(upperCell == null || lowerCell == null || rightCell == null || leftCell == null){return;}
+
+        d = this.right.subtract(this.left).add(this.top.subtract(this.bottom));
+        s = upperCell.s + lowerCell.s + rightCell.s + leftCell.s;
+
+        //DEBUG TO SEE WHAT RESULTS IN NULL!
+        //System.out.println("X: " + pos.x + ", Y: "+pos.y);
         
+        this.right = this.left.subtract(d.scale(rightCell.s / this.s));
+        this.left = this.left.add(d.scale(leftCell.s / this.s));
+        this.top = this.left.subtract(d.scale(upperCell.s / this.s));
+        this.bottom = this.left.add(d.scale(lowerCell.s / this.s));        
+    
         if(sourceBlock){
-            top = top.subtract(d.scale(cells[(int) pos.x][(int) pos.y - 1].s / this.s));
-            bottom = bottom.add(d.scale(cells[(int) pos.x][(int) pos.y + 1].s / this.s)); 
-            right = right.subtract(d.scale(cells[(int) pos.x + 1][(int) pos.y].s / this.s));
-            left = new Vector2(-WIND_TUNNEL_SPEED,0); // Adding Wind Tunnel
-        }else{
-            top = top.subtract(d.scale(cells[(int) pos.x][(int) pos.y - 1].s / this.s));
-            bottom = bottom.add(d.scale(cells[(int) pos.x][(int) pos.y + 1].s / this.s)); 
-            right = right.subtract(d.scale(cells[(int) pos.x + 1][(int) pos.y].s / this.s));
-            left = left.subtract(d.scale(cells[(int) pos.x - 1][(int) pos.y].s / this.s)); 
+            this.right = new Vector2(-WIND_TUNNEL_SPEED * dt, 0);
+            this.left = new Vector2(0, 0);
+            this.top = new Vector2(0, 0);
+            this.bottom = new Vector2(0, 0);
         }
 
     }
 
+    public void solveVelocity(float dt){
+        
+        if(s==0){return;}
+        
+        velocity = this.top.add(this.bottom.add(this.left).add(this.right));
+
+        Cell upperCell = cells[(int) pos.y - 1][(int) pos.x];
+        Cell lowerCell = cells[(int) pos.y + 1][(int) pos.x];
+        Cell rightCell = cells[(int) pos.y][(int) pos.x + 1];
+        Cell leftCell = cells[(int) pos.y][(int) pos.x - 1];
+
+        if(upperCell == null || lowerCell == null || rightCell == null || leftCell == null){return;}
+
+        top = (upperCell.bottom.add(this.top)).scale(0.5f);
+        bottom = (lowerCell.top.add(this.bottom)).scale(0.5f);
+        right = (rightCell.left.add(this.right)).scale(0.5f);
+        left = (leftCell.right.add(this.right)).scale(0.5f);
+
+        v = velocity.magnitude();
+    }
+
+    public void solvePressure(float dt){
+        if(s == 0){return;}
+        p = p.add(d.scale((1/s) * DENSITY / dt));
+    }
 
 
     /*
@@ -130,18 +167,28 @@ public class Cell extends GameWindow{
             return Color.DARK_GRAY;
         }
         if(s ==1){
-            return Color.GRAY;
+
+            int red = (int) (255 - p.magnitude() * COLOR_SCALE);
+            int blue = (int) p.magnitude() * COLOR_SCALE;
+            int green = 0;
+
+            red = Math.min(Math.max(0, red), 255);
+            blue = Math.min(Math.max(0, blue), 255);
+            green = Math.min(Math.max(0, green), 255);
+
+            return new Color(red,blue,green);
         }else{
             return Color.BLACK;
         }
     }
     
     public void debugString(Graphics2D graphics){
-        graphics.setFont(new Font("Arial", Font.BOLD, 10));
+        graphics.setFont(new Font("Arial", Font.BOLD, 2));
         graphics.setColor(Color.RED);
         graphics.drawString((String)("X: "+this.pos.x+", Y: "+this.pos.y), (int) cell.getMinX()+10 ,(int) cell.getMinY()+10);
         graphics.setColor(Color.ORANGE);
         graphics.drawString((String)("V_X: "+(int) this.velocity.x+", V_Y: "+(int) this.velocity.y), (int) cell.getMinX()+10 ,(int) cell.getMinY()+20);
+        graphics.drawString((String)("P "+p.magnitude()), (int) cell.getMinX()+10 ,(int) cell.getMinY()+30);
 
     }
 
