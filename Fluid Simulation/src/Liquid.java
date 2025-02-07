@@ -159,8 +159,49 @@ public class Liquid extends GameWindow{
 
     }
     
+    public float uSample(float x, float y){
+
+        int xPos = (int)(x / cellWidth);
+        int yPos = (int)(y / cellHeight);
+
+        float leftU = u[yPos][xPos - 1];
+        float rightU = u[yPos][xPos + 1];
+        
+        float averageU = (rightU * (xPos - x/cellWidth) - leftU * (xPos + 1 - x/cellWidth));
+
+        return averageU;
+    }
+    public float vSample(float x, float y){
+        int xPos = (int)(x / cellWidth);
+        int yPos = (int)(y / cellHeight);
+
+        float topV = v[yPos - 1][xPos];
+        float bottomV = v[yPos + 1][xPos];
+        
+        float averageV = (topV * (xPos - x/cellWidth) - bottomV * (xPos + 1 - x/cellWidth));
+
+        return averageV;
+    }
     
-    
+    public void advectVelocity(){
+        newU = u;
+        newV = v;
+
+        for(int x = 0; x < Height; x++){
+            for(int y = 0; y < Width; y++){
+         
+                //Given the indicies y, x for all the value tables!
+
+                if(s[y][x] == 0){return;} //Silly sussy walls should not be calculated at all
+
+                if(s[y][x-1] !=0 && x < Width-1){ //Check to ensure that while calculating, the previous cell to be reffered is not a wall
+
+                }
+
+         
+            }
+        }
+    }
     
     
     public void update(double deltaTime){
