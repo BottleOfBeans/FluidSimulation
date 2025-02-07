@@ -12,7 +12,7 @@ public class GameWindow extends JPanel implements Runnable {
     static int gameHeight = 1000; // gameRowAmount*ActualTileSize;
 
     
-    int FPS = 1;
+    int FPS = 60;
 
     /*
      *  FUN STUFF!
@@ -89,7 +89,10 @@ public class GameWindow extends JPanel implements Runnable {
     
 
     public void update(double dt){
-        ;
+        
+        //Update the Cell
+        l.update(deltaTime);
+
     }
 
     // Function that paints the updated version of the frame {FPS} times a second.
