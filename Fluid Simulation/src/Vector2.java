@@ -7,9 +7,13 @@ public class Vector2 {
         this.x = x;
         this.y = y;
     }
+    public Vector2(){
+        this.x = 0;
+        this.y = 0;
+    }
 
     public Vector2 normal(){
-        float z = (float) Math.sqrt(this.x * this.x + this.y + this.y);
+        float z = (float) Math.sqrt(this.x * this.x + this.y * this.y);
         return (new Vector2(x/z, y/z));
     }
 
