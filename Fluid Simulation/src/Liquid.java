@@ -30,6 +30,10 @@ import java.awt.geom.Rectangle2D;
 
 public class Liquid extends GameWindow{
 
+    final boolean  IF_GRAVITY = false;
+    final boolean  IF_WIND_TUNNEL = true;
+    final float WIND_TUNNEL_SPEED = 5.0f;
+
     static final int XCELLS = 8;
     static final int YCELLS = 8;
 
@@ -57,7 +61,10 @@ public class Liquid extends GameWindow{
 
     float[][] p = new float[Height][Width]; // Preassure Value for Each Cell
     int[][] s = new int[Height][Width]; // Scalar Value --> 0 represents a wall, 1 represents fluid
-            
+    
+    Line2D streamLines;
+
+
     public Liquid(){
 
         //Initialize the Liquid!
@@ -99,11 +106,24 @@ public class Liquid extends GameWindow{
         
                 //Given the X position x, and the Y position y. 
                 
-                if(s[y][x] != 0 && s[y+1][x] != 0){ // Checking if the cell is not a wall or not right above a wall!
+                if(IF_GRAVITY){ //If Gravity is enabled then apply!
+                    if(s[y][x] != 0 && s[y+1][x] != 0){ // Checking if the cell is not a wall or not right above a wall!
 
-                    v[y][x] += GRAVITY; // Applying the Gravity
-                    u[y][x] += GRAVITY; // Applying the Gravity
-
+                        v[y][x] += GRAVITY; // Applying the Gravity to the Vertical
+                        //u[y][x] += GRAVITY; // Applying the Gravity to the Horizontal
+    
+                    }
+                }
+            
+                if(IF_WIND_TUNNEL){
+                    if(x == 1){
+                        u[y][x] = WIND_TUNNEL_SPEED;
+                        v[y][x] = 0;
+                    }
+                    else if(x == Width-2){
+                        u[y][x] = -WIND_TUNNEL_SPEED;
+                        v[y][x] = 0;
+                    }
                 }
             }
         }
@@ -183,7 +203,7 @@ public class Liquid extends GameWindow{
         return averageV;
     }
     
-    public void advectVelocity(){
+    public void advectVelocity(float dt){
         newU = u;
         newV = v;
 
@@ -193,17 +213,44 @@ public class Liquid extends GameWindow{
                 //Given the indicies y, x for all the value tables!
 
                 if(s[y][x] == 0){return;} //Silly sussy walls should not be calculated at all
-
-                if(s[y][x-1] !=0 && x < Width-1){ //Check to ensure that while calculating, the previous cell to be reffered is not a wall
-
+            
+                if(s[y][x-1] != 0 && s[y][Width-1] != 0){ //Calculating the position the U (horizontal) velocities
+                    float oldX = (x * cellWidth - uSample(x,y)) * dt;
+                    float oldY = (y * cellHeight * 1.5f - vSample(x,y)) * dt;    
+    
+                    float currentU = u[y][x];
+                    float currentV = vSample(x,y);
+    
+                    float newX = oldX - dt * currentU;
+                    float newY = oldX - dt * currentV;
+    
+                    newU[y][x] = uSample(newX, newY);
+    
                 }
 
+                if(s[y-1][x] != 0 && s[Height-1][x] != 0){ //Calculating the position the V (vertical) velocities
+                    
+                    float oldX = (x * cellWidth * 1.5f - uSample(x,y)) * dt;
+                    float oldY = (y * cellHeight - vSample(x,y)) * dt;    
+    
+                    float currentU = uSample(x,y);
+                    float currentV = v[y][x];
+    
+                    float newX = oldX - dt * currentU;
+                    float newY = oldX - dt * currentV;
+    
+                    newV[y][x] = vSample(newX, newY);
+                }
          
             }
         }
+
+        u = newU;
+        v = newV;
+
     }
-    
-    
+       
+    @Override
     public void update(double deltaTime){
         
         float dt = (float) deltaTime;
@@ -218,7 +265,11 @@ public class Liquid extends GameWindow{
         solveBorders();
 
         //3. Advect Velocity
+        
+        advectVelocity(dt);
+                
         //4. Repeat!
+        
     
     }
 
