@@ -1,7 +1,5 @@
 import java.awt.*;
 import javax.swing.*;
-import java.awt.geom.Line2D;
-import java.awt.geom.Rectangle2D;
 
 public class GameWindow extends JPanel implements Runnable {
 
@@ -12,7 +10,7 @@ public class GameWindow extends JPanel implements Runnable {
     static int gameHeight = 1000; // gameRowAmount*ActualTileSize;
 
     
-    int FPS = 60;
+    int FPS = 10;
 
     /*
      *  FUN STUFF!
@@ -67,7 +65,7 @@ public class GameWindow extends JPanel implements Runnable {
         }
     }
 
-    public void updateLiquid(Graphics2D graphics){
+    public void updateDisplay(Graphics2D graphics){
         
         for(int i = 0; i < Liquid.Height; i++){ // Displaying all the nice little cells!
             for(int j = 0; j < Liquid.Width; j++){
@@ -91,7 +89,7 @@ public class GameWindow extends JPanel implements Runnable {
     public void update(double dt){
         
         //Update the Cell
-        l.update(deltaTime);
+        l.updateLiquid(deltaTime);
 
     }
 
@@ -103,7 +101,7 @@ public class GameWindow extends JPanel implements Runnable {
         Graphics2D graphics = (Graphics2D) g;
 
         //Do Things!
-        updateLiquid(graphics);
+        updateDisplay(graphics);
 
         graphics.dispose();
     }

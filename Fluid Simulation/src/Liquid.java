@@ -34,14 +34,15 @@ public class Liquid extends GameWindow{
     final boolean  IF_WIND_TUNNEL = true;
     final float WIND_TUNNEL_SPEED = 5.0f;
 
-    static final int XCELLS = 8;
-    static final int YCELLS = 8;
+    static final int XCELLS = 50;
+    static final int YCELLS = 50;
 
-    static final float OVERRELAXTION_CONST = 1;
+    static final float OVERRELAXTION_CONST = 1.0f;
     static final int PHYSICS_STEPS = 1;     
     static final float GRAVITY = 9.8f;
 
-    static final float VECTOR_LINE_SCALE = 0.01f;
+    static final float VECTOR_LINE_SCALE = 5.0f;
+    static final float PRESSURE_SCALE_FACTOR = 5f;
 
     static int Width = XCELLS + 2;
     static int Height = YCELLS + 2;
@@ -62,8 +63,6 @@ public class Liquid extends GameWindow{
     float[][] p = new float[Height][Width]; // Preassure Value for Each Cell
     int[][] s = new int[Height][Width]; // Scalar Value --> 0 represents a wall, 1 represents fluid
     
-    Line2D streamLines;
-
 
     public Liquid(){
 
@@ -103,7 +102,6 @@ public class Liquid extends GameWindow{
     public void addForces(float dt){
         for(int x = 0; x < Height; x++){
             for(int y = 0; y < Width; y++){
-        
                 //Given the X position x, and the Y position y. 
                 
                 if(IF_GRAVITY){ //If Gravity is enabled then apply!
@@ -117,12 +115,12 @@ public class Liquid extends GameWindow{
             
                 if(IF_WIND_TUNNEL){
                     if(x == 1){
+                        s[y][x] = 0;
                         u[y][x] = WIND_TUNNEL_SPEED;
-                        v[y][x] = 0;
                     }
                     else if(x == Width-2){
+                        s[y][x] = 0;
                         u[y][x] = -WIND_TUNNEL_SPEED;
-                        v[y][x] = 0;
                     }
                 }
             }
@@ -131,32 +129,44 @@ public class Liquid extends GameWindow{
     
     public void solveCompressibility(float dt){
         
-        for(int i = 0; i < PHYSICS_STEPS; i ++){
+        for(int i = 0; i <= PHYSICS_STEPS; i ++){
             for(int x = 0; x < Height; x++){
                 for(int y = 0; y < Width; y++){
-            
                     //Given the X position x, and the Y position y. 
                     
-                    if(s[y][x] == 0){return;} // Return and don't calculate for walls!
+                    if(s[y][x] != 0){
 
-                    int leftS = s[x-1][y];
-                    int rightS = s[x+1][y];
-                    int upS = s[x][y-1];
-                    int downS = s[x][y+1];
+                        int leftS = s[y][x-1]; //Negative Values
+                        int rightS = s[y][x+1]; //Positive Values
 
-                    int S = leftS + rightS + upS + downS;
+                        int upS = s[y-1][x]; //Negative Values
+                        int downS = s[y+1][x]; //Positive Values
+    
+                        int S = leftS + rightS + upS + downS;
+    
+                        if(S != 0){
 
-                    if(S == 0){return;} //A single grid surrounded by obstacles should forgo all further calculations.
-
-                    float divergence = u[x+1][y] - u[x-1][y];
-
-                    float d = divergence * OVERRELAXTION_CONST / S;
-
-                    u[x + 1][y] -= d * s[x+1][y]; //Right Box
-                    u[x - 1][y] += d * s[x-1][y]; //Left Box
-                    v[x][y + 1] += d * s[x][y+1]; //Down Box
-                    v[x][y - 1] -= d * s[x][y-1]; //Up Box
-                    
+                            //Right - Left plus Down - Up
+                            float divergence = u[y][x+1] - u[y][x-1] + v[y+1][x] - v[y-1][x];
+                           
+                            System.out.println("Left:   " + u[y][x-1]);
+                            System.out.println("Right:  " + u[y][x+1]);
+                            System.out.println("Up:     " + u[y - 1][x]);
+                            System.out.println("Down: : " + u[y + 1][x]);
+                           
+                            float d = divergence * OVERRELAXTION_CONST / S;
+        
+                            p[y][x] =  d/S;
+        
+                            u[y][x + 1] -= d * s[y][x+1]; //Right Box
+                            u[y][x - 1] += d * s[y][x-1]; //Left Box
+                            v[y + 1][x] -= d * s[y+1][x]; //Down Box
+                            v[y - 1][x] += d * s[y-1][x]; //Up Box
+                            
+                            System.out.println("Divergence: +"+ x+ ", "+ y+ " is: "+divergence + " and the S is: " + S);
+                            System.out.println("Velocity: " + u[y][x] + ", " + v[y][x]);
+                        } 
+                    }
 
                 }
             }    
@@ -168,45 +178,63 @@ public class Liquid extends GameWindow{
 
         for(int y = 0; y <Height; y++){ //Iterate from 0-Height y values
             
-            u[y][0] = u[y][1];
-            u[y][Width-1] = u[y][Width-2];
+            u[y][0] =   u[y][1];
+            u[y][Width-1] =  u[y][Width-2];
         }
 
         for(int x = 0; x <Width; x++){
-            v[0][x] = v[1][x];
-            v[Height-1][x] = v[Height -2][x];
+            v[0][x] =  v[1][x];
+            v[Height-1][x] =  v[Height -2][x];
         }
 
     }
     
-    public float uSample(float x, float y){
-
-        int xPos = (int)(x / cellWidth);
-        int yPos = (int)(y / cellHeight);
-
-        float leftU = u[yPos][xPos - 1];
-        float rightU = u[yPos][xPos + 1];
+    public float sampleU(float gx, float gy){
         
-        float averageU = (rightU * (xPos - x/cellWidth) - leftU * (xPos + 1 - x/cellWidth));
+        int x = (int) (gx/cellWidth); // Cell Location X 
+        int y = (int) (gy/cellHeight); //Cell Location Y
 
-        return averageU;
-    }
-    public float vSample(float x, float y){
-        int xPos = (int)(x / cellWidth);
-        int yPos = (int)(y / cellHeight);
+        float u00 = u[y][x]; //Top Left
+        float u01 = u[y][x+1]; //Top Right
+        float u10 = u[y + 1][x]; //Bottom Left
+        float u11 = u[y + 1][x + 1]; //Bottom Right
 
-        float topV = v[yPos - 1][xPos];
-        float bottomV = v[yPos + 1][xPos];
+        float xLeft = Math.abs(gx - (x * cellWidth));
+        float xRight = Math.abs(gx - ((x + 1) * cellWidth));
+
+        float yUp = Math.abs(gy - (y * cellHeight));
+        float yDown = Math.abs(gy - ((y +1 ) * cellWidth));
         
-        float averageV = (topV * (xPos - x/cellWidth) - bottomV * (xPos + 1 - x/cellWidth));
+        float upU = (u00 * xLeft + u01 * xRight) / (xLeft + xRight);
+        float downU = (u10 * xLeft + u11 * xRight) / (xLeft + xRight);
 
-        return averageV;
+        return (upU * yUp + downU * yDown)/(yUp + yDown);
+
+    }   
+    public float sampleV(float gx, float gy){
+        
+        int x = (int) (gx/cellWidth); // Cell Location X 
+        int y = (int) (gy/cellHeight); //Cell Location Y
+
+        float u00 = v[y][x]; //Top Left
+        float u01 = v[y][x+1]; //Top Right
+        float u10 = v[y + 1][x]; //Bottom Left
+        float u11 = v[y + 1][x + 1]; //Bottom Right
+
+        float xLeft = Math.abs(gx - (x * cellWidth));
+        float xRight = Math.abs(gx - ((x + 1) * cellWidth));
+
+        float yUp = Math.abs(gy - (y * cellHeight));
+        float yDown = Math.abs(gy - ((y +1 ) * cellWidth));
+        
+        float upU = (u00 * xLeft + u01 * xRight) / (xLeft + xRight);
+        float downU = (u10 * xLeft + u11 * xRight) / (xLeft + xRight);
+
+        return (upU * yUp + downU * yDown)/(yUp + yDown);    
     }
-    
+
     public void advectVelocity(float dt){
-        newU = u;
-        newV = v;
-
+    
         for(int x = 0; x < Height; x++){
             for(int y = 0; y < Width; y++){
          
@@ -214,34 +242,14 @@ public class Liquid extends GameWindow{
 
                 if(s[y][x] == 0){return;} //Silly sussy walls should not be calculated at all
             
-                if(s[y][x-1] != 0 && s[y][Width-1] != 0){ //Calculating the position the U (horizontal) velocities
-                    float oldX = (x * cellWidth - uSample(x,y)) * dt;
-                    float oldY = (y * cellHeight * 1.5f - vSample(x,y)) * dt;    
-    
-                    float currentU = u[y][x];
-                    float currentV = vSample(x,y);
-    
-                    float newX = oldX - dt * currentU;
-                    float newY = oldX - dt * currentV;
-    
-                    newU[y][x] = uSample(newX, newY);
-    
-                }
+                //From here, it is given that it is not a wall, now how should one calculate?
 
-                if(s[y-1][x] != 0 && s[Height-1][x] != 0){ //Calculating the position the V (vertical) velocities
-                    
-                    float oldX = (x * cellWidth * 1.5f - uSample(x,y)) * dt;
-                    float oldY = (y * cellHeight - vSample(x,y)) * dt;    
-    
-                    float currentU = uSample(x,y);
-                    float currentV = v[y][x];
-    
-                    float newX = oldX - dt * currentU;
-                    float newY = oldX - dt * currentV;
-    
-                    newV[y][x] = vSample(newX, newY);
-                }
-         
+                float newX = cellWidth * x - (u[y][x] * dt);
+                float newY = cellHeight * y - (v[y][x] * dt);
+
+                newU[y][x] = sampleU(newX, newY);
+                newV[y][x] = sampleU(newX, newY);
+        
             }
         }
 
@@ -249,9 +257,28 @@ public class Liquid extends GameWindow{
         v = newV;
 
     }
-       
-    @Override
-    public void update(double deltaTime){
+    
+    public void updateColor(){
+
+        for(int x = 0; x < Width - 2; x++){
+            for(int y = 0; y < Height - 1; y++){
+                
+                if(s[y][x] != 0){
+            
+                    int red = (int) (v[y][x] * PRESSURE_SCALE_FACTOR - 255);
+                    int blue = (int) (255 - v[y][x] * PRESSURE_SCALE_FACTOR);
+                    int green = 0;
+
+                    red = Math.min(225, Math.max(0, red));
+                    blue = Math.min(225, Math.max(0, blue));
+                
+                    colors[y][x] = new Color(red, green, blue);
+                }
+            }
+       }
+    }
+    
+    public void updateLiquid(double deltaTime){
         
         float dt = (float) deltaTime;
 
@@ -266,15 +293,15 @@ public class Liquid extends GameWindow{
 
         //3. Advect Velocity
         
-        advectVelocity(dt);
-                
+        //advectVelocity(dt);
+        
+        updateColor();
         //4. Repeat!
         
     
     }
 
 
-    
     
     //Visualization Code!
     public Rectangle2D getCell(int i,int j){
