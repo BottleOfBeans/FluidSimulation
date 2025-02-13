@@ -30,291 +30,276 @@ import java.awt.geom.Rectangle2D;
 
 public class Liquid extends GameWindow{
 
-    final boolean  IF_GRAVITY = false;
-    final boolean  IF_WIND_TUNNEL = true;
-    final float WIND_TUNNEL_SPEED = 5.0f;
 
-    static final int XCELLS = 50;
-    static final int YCELLS = 50;
+    /*
+     * 
+     * CUSTOM PARAMETERS
+     * 
+     */
 
-    static final float OVERRELAXTION_CONST = 1.0f;
-    static final int PHYSICS_STEPS = 1;     
-    static final float GRAVITY = 9.8f;
+    static final float OVER_RELAXATION_CONST = 1.9f;
+    static final float DENSITY = 1.0f;
+    static final float WIND_TUNNEL_SPEED = 5.0f;
+    static final float LINE_SCALE = 5.0f;
 
-    static final float VECTOR_LINE_SCALE = 5.0f;
-    static final float PRESSURE_SCALE_FACTOR = 5f;
 
-    static int Width = XCELLS + 2;
-    static int Height = YCELLS + 2;
 
-    float cellWidth = gameWidth/Width;
-    float cellHeight = gameHeight/Height;
+     //==============================
 
-    static Rectangle2D[][] cells = new Rectangle2D.Float[Height][Width]; // Cells that can be visualized!
-    static Color[][] colors = new Color[Height][Width];
 
-    float[][] u = new float[Height][Width]; // Horizontal Velocity Components
-    float[][] v = new float[Height][Width]; // Vertical Velocity Components
+    static final int XCELLS = 8;
+    static final int YCELLS = 8;
+
+    static int xCells = XCELLS + 2;
+    static int yCells = YCELLS + 2;
+
+    float cellWidth = gameWidth/xCells;
+    float cellHeight = gameHeight/yCells;
+
+    static Rectangle2D[][] cells = new Rectangle2D.Float[yCells][xCells]; // Cells that can be visualized!
+
+    float[][] u = new float[yCells][xCells]; // Horizontal Velocity Components
+    float[][] v = new float[yCells][xCells]; // Vertical Velocity Components
     
-    float[][] newU = new float[Height][Width]; // New Vertical Velocity Components
-    float[][] newV = new float[Height][Width]; // New Vertical Velocity Components
+    float[][] newU = new float[yCells][xCells]; // New Vertical Velocity Components
+    float[][] newV = new float[yCells][xCells]; // New Vertical Velocity Components
 
-
-    float[][] p = new float[Height][Width]; // Preassure Value for Each Cell
-    int[][] s = new int[Height][Width]; // Scalar Value --> 0 represents a wall, 1 represents fluid
+    float[][] p = new float[yCells][xCells]; // Preassure Value for Each Cell
+    int[][] s = new int[yCells][xCells]; // Scalar Value --> 0 represents a wall, 1 represents fluid
     
 
     public Liquid(){
 
         //Initialize the Liquid!
-        for(int row = 0; row < Height; row++){
-            for(int col = 0; col < Width; col++){
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
                 
             
                 //Zero out all the components!
-                u[row][col] = 0f;
-                v[row][col] = 0f;
-                newU[row][col] = 0f;
-                newV[row][col] = 0f;
-                p[row][col] = 0f;
-                s[row][col] = 1;
+                
+                u[y][x] = 0f; //Zeroed Horizontal Velocity
+                v[y][x] = 0f; //Zeroed Vertical Velocity
+                newU[y][x] = 0f; //Zeroed New HV Value
+                newV[y][x] = 0f; //Zeroed Old VV Value
+                p[y][x] = 0f; //Zeroed Pressure
+                s[y][x] = 1; //Zeroed Scalar Representation of Boundaries
 
                 //Set up the Cells!
-                cells[row][col] = new Rectangle2D.Float(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
-                colors[row][col] = Color.gray;
+                cells[y][x] = new Rectangle2D.Float(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
 
-                /*
-                 * Special Cases!
-                 */
+                if( x == 0 || x == xCells-1 || y == 0 || y == yCells-1){ //Test to see if it a boundary Cells
+                    s[y][x] = 0; //Make the scalar 0;
+                }
+
+
+            }
+        }
+        
+    }        
+    
+
+    /*
+     * This function allows for the calculation of boundaries, forces and other various things before compression and advection calculations.
+     */
+    public void applyForces(double dt){
+        
+        //Iterate through every single cell!
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
+
+                //Given a cell at position y,x
                 
-                //Check if a Boundary
-                if(row == 0 || col == 0 || row == Height-1 || col == Width-1){
-                    s[row][col] = 0; // Set the scalar value to show that it is a wall. 
-                    colors[row][col] = Color.DARK_GRAY;
+                //First establish no slip surfaces
+                if(s[y][x] == 0){
+                    u[y][x] = 0;
+                    v[y][x] = 0;
                 }
+
+                //Establish Wind Tunnel Inflow (Left Boundary)
+                //Wind tunnel will push in a constant speed of WIND_TUNNEL_SPEED
+                if(s[y][x] == 0 && x == 0){
+                    u[y][x] = WIND_TUNNEL_SPEED;
+                }
+
+                //Establish Wind Tunnel Outflow (Right Boundary)
+                //By Copying the cell next to it, the wind tunnel will just simply absorb all of the pushed air
+                if(s[y][x] == 0 && x == xCells-1){
+                    u[y][x] = u[y][x-1];
+                    v[y][x] = v[y][x-1];
+                }
+
+
 
             }
         }
-        
-        
-    }    
+    }
 
-    public void addForces(float dt){
-        for(int x = 0; x < Height; x++){
-            for(int y = 0; y < Width; y++){
-                //Given the X position x, and the Y position y. 
+    public void solveCompression(double dt){
+
+        float preassureConst = (float) (DENSITY * (cellHeight + cellWidth)/2 * dt);
+
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
+                //###CALC STARTS HERE
                 
-                if(IF_GRAVITY){ //If Gravity is enabled then apply!
-                    if(s[y][x] != 0 && s[y+1][x] != 0){ // Checking if the cell is not a wall or not right above a wall!
+                //Given a cell of X,Y
+                
+                if(s[y][x] == 0){continue;} //If a wall then continue
 
-                        v[y][x] += GRAVITY; // Applying the Gravity to the Vertical
-                        //u[y][x] += GRAVITY; // Applying the Gravity to the Horizontal
-    
-                    }
-                }
-            
-                if(IF_WIND_TUNNEL){
-                    if(x == 1){
-                        s[y][x] = 0;
-                        u[y][x] = WIND_TUNNEL_SPEED;
-                    }
-                    else if(x == Width-2){
-                        s[y][x] = 0;
-                        u[y][x] = -WIND_TUNNEL_SPEED;
-                    }
-                }
+                float sSum = s[y][x - 1] + s[y][x + 1] + s[y - 1][x] + s[y + 1][x]; //Scalar Calcaultion for Boundaries 
+                
+                if(sSum == 0){continue;} //If surrounded by walls, then continue
+
+                float divergence = u[y][x + 1] - u[y][x]+ v[y - 1][x] - v[y][x]; //Calculating Divergence
+                divergence = -divergence / sSum * OVER_RELAXATION_CONST;
+                
+                System.out.println( u[y][x + 1] - u[y][x]+ v[y - 1][x] - v[y][x]);
+
+                p[y][x] = preassureConst * divergence; //Calcualte Preassure as a constant of density and the cell size
+
+                u[y][x] -= s[y][x - 1] * divergence; 
+                v[y][x] -= s[y + 1][x] * divergence;
+
+                u[y][x + 1] += s[y][x+1] * divergence;
+                v[y + 1][x] += s[y + 1][x] *divergence;
+
+                //##### CALC ENDS HERE
+                
             }
         }
     }
-    
-    public void solveCompressibility(float dt){
-        
-        for(int i = 0; i <= PHYSICS_STEPS; i ++){
-            for(int x = 0; x < Height; x++){
-                for(int y = 0; y < Width; y++){
-                    //Given the X position x, and the Y position y. 
-                    
-                    if(s[y][x] != 0){
 
-                        int leftS = s[y][x-1]; //Negative Values
-                        int rightS = s[y][x+1]; //Positive Values
+	public float avgU(int x, int y) {
+        return (u[y][x] + u[y + 1][x] + u[y][x + 1] + u[y + 1][ x+ 1]) * 0.25f;            
+    }
+    public float avgV(int x, int y) {
+        return (v[y][x] + v[y + 1][x] + v[y][x + 1] + v[y + 1][ x+ 1]) * 0.25f;            
+    }
 
-                        int upS = s[y-1][x]; //Negative Values
-                        int downS = s[y+1][x]; //Positive Values
-    
-                        int S = leftS + rightS + upS + downS;
-    
-                        if(S != 0){
+    public float[] sampleVelocity(float x, float y) {
+        // Convert world position to grid index
+        float gridX = x / cellWidth;
+        float gridY = y / cellHeight;
 
-                            //Right - Left plus Down - Up
-                            float divergence = u[y][x+1] - u[y][x-1] + v[y+1][x] - v[y-1][x];
-                           
-                            System.out.println("Left:   " + u[y][x-1]);
-                            System.out.println("Right:  " + u[y][x+1]);
-                            System.out.println("Up:     " + u[y - 1][x]);
-                            System.out.println("Down: : " + u[y + 1][x]);
-                           
-                            float d = divergence * OVERRELAXTION_CONST / S;
-        
-                            p[y][x] =  d/S;
-        
-                            u[y][x + 1] -= d * s[y][x+1]; //Right Box
-                            u[y][x - 1] += d * s[y][x-1]; //Left Box
-                            v[y + 1][x] -= d * s[y+1][x]; //Down Box
-                            v[y - 1][x] += d * s[y-1][x]; //Up Box
-                            
-                            System.out.println("Divergence: +"+ x+ ", "+ y+ " is: "+divergence + " and the S is: " + S);
-                            System.out.println("Velocity: " + u[y][x] + ", " + v[y][x]);
-                        } 
-                    }
+        // Get integer grid indices
+        int x0 = Math.max(0, Math.min(xCells - 2, (int) gridX));
+        int x1 = x0 + 1;
+        int y0 = Math.max(0, Math.min(yCells - 2, (int) gridY));
+        int y1 = y0 + 1;
 
+        // Get interpolation weights
+        float tx = gridX - x0;
+        float ty = gridY - y0;
+
+        // Bilinear interpolation for horizontal velocity (u)
+        float u00 = u[y0][x0]; // Bottom-left
+        float u10 = u[y0][x1]; // Bottom-right
+        float u01 = u[y1][x0]; // Top-left
+        float u11 = u[y1][x1]; // Top-right
+        float uInterp = (1 - tx) * (1 - ty) * u00 + tx * (1 - ty) * u10 + (1 - tx) * ty * u01 + tx * ty * u11;
+
+        // Bilinear interpolation for vertical velocity (v)
+        float v00 = v[y0][x0]; // Bottom-left
+        float v10 = v[y0][x1]; // Bottom-right
+        float v01 = v[y1][x0]; // Top-left
+        float v11 = v[y1][x1]; // Top-right
+        float vInterp = (1 - tx) * (1 - ty) * v00 + tx * (1 - ty) * v10 + (1 - tx) * ty * v01 + tx * ty * v11;
+
+        return new float[]{uInterp, vInterp};
+}
+
+    public void solveAdvection(double dt){
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
+
+                if(s[y][x] == 0){continue;}
+
+                //U Component Advection               
+                if(true){
+                    float currentX = cellWidth * x;
+                    float currentY = cellHeight * y + cellHeight/2;
+
+                    float currentV = avgV(x, y);
+                    currentX -= dt * u[y][x];
+                    currentY -= dt * currentV;
+
+                    newU[y][x] = (sampleVelocity(currentX, currentY))[0];
                 }
-            }    
-        }
-        
-    }
-    
-    public void solveBorders(){
+                if(true){
+                    float currentX = cellWidth * x + cellWidth/2;
+                    float currentY = cellHeight * y;
 
-        for(int y = 0; y <Height; y++){ //Iterate from 0-Height y values
-            
-            u[y][0] =   u[y][1];
-            u[y][Width-1] =  u[y][Width-2];
-        }
+                    float currentU = avgU(x, y);
+                    currentX -= dt * currentU;
+                    currentY -= dt * v[y][x];
 
-        for(int x = 0; x <Width; x++){
-            v[0][x] =  v[1][x];
-            v[Height-1][x] =  v[Height -2][x];
-        }
-
-    }
-    
-    public float sampleU(float gx, float gy){
-        
-        int x = (int) (gx/cellWidth); // Cell Location X 
-        int y = (int) (gy/cellHeight); //Cell Location Y
-
-        float u00 = u[y][x]; //Top Left
-        float u01 = u[y][x+1]; //Top Right
-        float u10 = u[y + 1][x]; //Bottom Left
-        float u11 = u[y + 1][x + 1]; //Bottom Right
-
-        float xLeft = Math.abs(gx - (x * cellWidth));
-        float xRight = Math.abs(gx - ((x + 1) * cellWidth));
-
-        float yUp = Math.abs(gy - (y * cellHeight));
-        float yDown = Math.abs(gy - ((y +1 ) * cellWidth));
-        
-        float upU = (u00 * xLeft + u01 * xRight) / (xLeft + xRight);
-        float downU = (u10 * xLeft + u11 * xRight) / (xLeft + xRight);
-
-        return (upU * yUp + downU * yDown)/(yUp + yDown);
-
-    }   
-    public float sampleV(float gx, float gy){
-        
-        int x = (int) (gx/cellWidth); // Cell Location X 
-        int y = (int) (gy/cellHeight); //Cell Location Y
-
-        float u00 = v[y][x]; //Top Left
-        float u01 = v[y][x+1]; //Top Right
-        float u10 = v[y + 1][x]; //Bottom Left
-        float u11 = v[y + 1][x + 1]; //Bottom Right
-
-        float xLeft = Math.abs(gx - (x * cellWidth));
-        float xRight = Math.abs(gx - ((x + 1) * cellWidth));
-
-        float yUp = Math.abs(gy - (y * cellHeight));
-        float yDown = Math.abs(gy - ((y +1 ) * cellWidth));
-        
-        float upU = (u00 * xLeft + u01 * xRight) / (xLeft + xRight);
-        float downU = (u10 * xLeft + u11 * xRight) / (xLeft + xRight);
-
-        return (upU * yUp + downU * yDown)/(yUp + yDown);    
-    }
-
-    public void advectVelocity(float dt){
-    
-        for(int x = 0; x < Height; x++){
-            for(int y = 0; y < Width; y++){
-         
-                //Given the indicies y, x for all the value tables!
-
-                if(s[y][x] == 0){return;} //Silly sussy walls should not be calculated at all
-            
-                //From here, it is given that it is not a wall, now how should one calculate?
-
-                float newX = cellWidth * x - (u[y][x] * dt);
-                float newY = cellHeight * y - (v[y][x] * dt);
-
-                newU[y][x] = sampleU(newX, newY);
-                newV[y][x] = sampleU(newX, newY);
-        
+                    newU[y][x] = (sampleVelocity(currentX, currentY))[1];
+                }  
             }
         }
-
+        
         u = newU;
         v = newV;
-
     }
-    
-    public void updateColor(){
 
-        for(int x = 0; x < Width - 2; x++){
-            for(int y = 0; y < Height - 1; y++){
-                
-                if(s[y][x] != 0){
-            
-                    int red = (int) (v[y][x] * PRESSURE_SCALE_FACTOR - 255);
-                    int blue = (int) (255 - v[y][x] * PRESSURE_SCALE_FACTOR);
-                    int green = 0;
+    //Logic Code!
 
-                    red = Math.min(225, Math.max(0, red));
-                    blue = Math.min(225, Math.max(0, blue));
-                
-                    colors[y][x] = new Color(red, green, blue);
-                }
-            }
-       }
+    public void updateCells(double dt){
+        
+        //1. Add Forces
+        applyForces(dt);
+        
+        //3. Solve Compression
+        solveCompression(dt);
+        
+        //4. Solve Advection
+        solveAdvection(dt);
     }
-    
-    public void updateLiquid(double deltaTime){
-        
-        float dt = (float) deltaTime;
 
-        //1. Add Velocity Ect. 
-
-        addForces(dt);
-
-        //2. Make Incompressible  Ect.
-        
-        solveCompressibility(dt);
-        solveBorders();
-
-        //3. Advect Velocity
-        
-        //advectVelocity(dt);
-        
-        updateColor();
-        //4. Repeat!
-        
-    
-    }
 
 
     
     //Visualization Code!
-    public Rectangle2D getCell(int i,int j){
+
+    private Rectangle2D getCell(int i,int j){
         return cells[i][j];
     }
-    public Color getColor(int i, int j){
-        return colors[i][j];
+    private Color getColor(int i, int j){
+        if(s[j][i] == 0){
+            return Color.DARK_GRAY;
+        }else{
+            return Color.LIGHT_GRAY;
+        }
     }
-    public Line2D getVectorLine(int i, int j){
-        
-        float StartingPointX = (float) cells[i][j].getCenterX(); 
-        float StartingPointY = (float) cells[i][j].getCenterY();
+    public void drawVelocityLines(Graphics2D g){
+        for(int x = 0; x < xCells; x++){
+            for(int y = 0; y < yCells; y++){
 
-        return new Line2D.Double(StartingPointX, StartingPointY, StartingPointX + u[i][j] * VECTOR_LINE_SCALE, StartingPointY + v[i][j] * VECTOR_LINE_SCALE);
+                double startX = (x+0.5) * cellWidth;
+                double startY = (y+0.5) * cellHeight;
+                double endX = startX + u[y][x] * LINE_SCALE;
+                double endY = startY + v[y][x] * LINE_SCALE;
+
+                g.draw(new Line2D.Double(startX, startY, endX, endY));
+            }
+        }
+
+    }
+    
+    public void updateCellDisplay(Graphics2D g){
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
+
+                //Fill in the background color of the cell
+                g.setColor(getColor(x,y));
+                g.fill(getCell(x, y));
+
+                //Fill in the outline of the cell
+                g.setColor(Color.BLACK);
+                g.draw(getCell(x, y));
+
+                g.setColor(Color.RED);
+            }
+        }
     }
 }
