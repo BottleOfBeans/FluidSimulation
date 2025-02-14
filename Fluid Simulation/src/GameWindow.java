@@ -10,7 +10,7 @@ public class GameWindow extends JPanel implements Runnable {
     static int gameHeight = 1000; // gameRowAmount*ActualTileSize;
 
     
-    int FPS = 1;
+    int FPS = 60;
 
     /*
      *  FUN STUFF!
@@ -65,9 +65,33 @@ public class GameWindow extends JPanel implements Runnable {
         }
     }
 
-    public void update(double dt){
+    public void updateDisplay(Graphics2D graphics){
+        
+        for(int i = 0; i < Liquid.Height; i++){ // Displaying all the nice little cells!
+            for(int j = 0; j < Liquid.Width; j++){
 
-        l.updateCells(dt);
+                graphics.setColor(l.getColor(i, j));
+                graphics.fill(l.getCell(i,j));
+
+                graphics.setColor(Color.BLACK);
+                graphics.draw(l.getCell(i,j));
+                
+                graphics.setColor(Color.WHITE);
+                graphics.draw(l.getHorizontalLine(i, j));
+                graphics.draw(l.getVerticalLine(i, j));
+
+
+            }
+
+
+        }
+    }
+    
+
+    public void update(double dt){
+        
+        //Update the Cell
+        l.updateLiquid(deltaTime);
 
     }
 
@@ -79,8 +103,7 @@ public class GameWindow extends JPanel implements Runnable {
         Graphics2D graphics = (Graphics2D) g;
 
         //Do Things!
-        l.updateCellDisplay(graphics);
-        l.drawVelocityLines(graphics);
+        updateDisplay(graphics);
 
         graphics.dispose();
     }
