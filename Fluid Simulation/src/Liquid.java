@@ -30,46 +30,56 @@ import java.awt.geom.Rectangle2D;
 
 public class Liquid extends GameWindow{
 
-    final boolean  IF_GRAVITY = false;
-    final boolean  IF_WIND_TUNNEL = true;
+    /*
+     * CHANGEABLE PARAMETERS
+     */
+    final int XCELLS = 48;
+    final int YCELLS = 48;
+
+    final boolean IS_WIND_TUNNEL = true;
     final float WIND_TUNNEL_SPEED = 5.0f;
-    final float DENSITY = 25.5f;
-
-    static final int XCELLS = 50;
-    static final int YCELLS = 50;
-
-    static final float OVERRELAXTION_CONST = 1.0f;
-    static final int PHYSICS_STEPS = 1;     
-    static final float GRAVITY = 9.8f;
-
-    static final float VECTOR_LINE_SCALE = 5.0f;
-    static final float PRESSURE_SCALE_FACTOR = 5;
-
-    static int Width = XCELLS + 2;
-    static int Height = YCELLS + 2;
-
-    float cellWidth = gameWidth/Width;
-    float cellHeight = gameHeight/Height;
-
-    static Rectangle2D[][] cells = new Rectangle2D.Float[Height][Width]; // Cells that can be visualized!
-    static Color[][] colors = new Color[Height][Width];
-
-    float[][] u = new float[Height][Width]; // Horizontal Velocity Components
-    float[][] v = new float[Height][Width]; // Vertical Velocity Components
     
-    float[][] newU = new float[Height][Width]; // New Vertical Velocity Components
-    float[][] newV = new float[Height][Width]; // New Vertical Velocity Components
+
+    final float VECTOR_LINE_SCALE = 5.0f;
 
 
-    float[][] p = new float[Height][Width]; // Preassure Value for Each Cell
-    int[][] s = new int[Height][Width]; // Scalar Value --> 0 represents a wall, 1 represents fluid
+    
+
+    //DO NOT TOUCH!
+
+    int xCells = XCELLS + 2;
+    int yCells = YCELLS + 2;
+
+    float cellWidth = gameWidth/xCells;
+    float cellHeight = gameHeight/yCells;
+
+    /*
+     *  U --> Stored at the middle right of a cell 
+     *  V --> Stored at the top of a cell
+     *  D --> Stored at the middle of a cell 
+     * 
+     */
+
+    Rectangle2D[][] cells = new Rectangle2D.Float[yCells][xCells]; // Cells that can be visualized!
+    Color[][] colors = new Color[yCells][xCells];
+
+    float[][] u = new float[yCells][xCells]; // Horizontal Velocity Components
+    float[][] v = new float[yCells][xCells]; // Vertical Velocity Components
+    
+    float[][] newU = new float[yCells][xCells]; // New Vertical Velocity Components
+    float[][] newV = new float[yCells][xCells]; // New Vertical Velocity Components
+
+    float[][] d = new float[yCells][xCells]; // Density Value for Each Cell
+    float[][] newD = new float[yCells][xCells]; //Temp new Density Values
+
+    int[][] s = new int[yCells][xCells]; // Scalar Value --> 0 represents a wall, 1 represents fluid
     
 
     public Liquid(){
 
         //Initialize the Liquid!
-        for(int y = 0; y < Height; y++){
-            for(int x = 0; x < Width; x++){
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
                 
             
                 //Zero out all the components!
@@ -77,7 +87,7 @@ public class Liquid extends GameWindow{
                 v[y][x] = 0f;
                 newU[y][x] = 0f;
                 newV[y][x] = 0f;
-                p[y][x] = 0f;
+                d[y][x] = 0f;
                 s[y][x] = 1;
 
                 //Set up the Cells!
@@ -90,19 +100,19 @@ public class Liquid extends GameWindow{
                 
                 //Container
                 
-                float radius = 5.0f;
+                float radius = 20f;
                 
                 Vector2 currentCell = new Vector2(x, y);
-                Vector2 center = new Vector2(Width/2, Height/2);
+                Vector2 center = new Vector2(xCells/2, yCells/2);
                 
                 if(currentCell.subtract(center).magnitude() <= radius){
-                    s[y][x] = 0;
+                    d[y][x] = 225;
                 }
 
 
 
                 //Check if a Boundary
-                if(y == 0 || x == 0 || y == Height-1 || x == Width-1){
+                if(y == 0 || x == 0 || y == yCells-1 || x == xCells-1){
                     s[y][x] = 0; // Set the scalar value to show that it is a wall. 
                     colors[y][x] = Color.DARK_GRAY;
                 }
@@ -114,128 +124,156 @@ public class Liquid extends GameWindow{
     }    
 
     public void addForces(float dt){
-        for(int x = 0; x < Height; x++){
-            for(int y = 0; y < Width; y++){
-                //Given the X position x, and the Y position y. 
+        for(int x = 0; x < xCells; x++){
+            for(int y =0; y < yCells; y++){
                 
-                if(s[y][x] == 0){
-                    u[y][x] = 0;
+                //Check if Boundary
+
+                if(x == 0){ // Left Boundary
                     v[y][x] = 0;
-                }
-
-                if(IF_GRAVITY){ //If Gravity is enabled then apply!
-                    if(s[y][x] != 0 && s[y+1][x] != 0){ // Checking if the cell is not a wall or not right above a wall!
-
-                        v[y][x] += GRAVITY; // Applying the Gravity to the Vertical
-                        //u[y][x] += GRAVITY; // Applying the Gravity to the Horizontal
-    
-                    }
-                }
-            
-                if(IF_WIND_TUNNEL){
-                    if(x == 1 && y != 0 && y != cellHeight-1){
+                    if(IS_WIND_TUNNEL){
                         u[y][x] = WIND_TUNNEL_SPEED;
-                        v[y][x] = 0;
-                    }
-                    else if(x == Width-1 &&  y != 0 && y != cellHeight-1){
-                        u[y][x] = u[y][x-1];
+                    }else{
+                        u[y][x] = u[y][x + 1];
                     }
                 }
-            }
-        }
-    }
-    
-    public void solveCompressibility(float dt){
-        
-        float densityConst = DENSITY * cellHeight / dt;
-
-        for(int i = 0; i <= PHYSICS_STEPS; i ++){
-
-            for(int x = 0; x < Height; x++){
-                for(int y = 0; y < Width; y++){
-                    //Given the X position x, and the Y position y. 
-                    
-                    if(s[y][x] == 0){continue;} //If is a wall then don't calc
-                    
-                                //Up            Down            Right       Left
-                    int sSum = s[y - 1][x] + s[y + 1][x] + s[y][x - 1] + s[y][x + 1];
-
-                    if(sSum == 0){continue;} //If surrounded completley by walls then don't calc
-
-                                        //Right  -   Left  +   Down  -   Up
-                    float divergence = u[y][x+1] - u[y][x] + v[y][x] - v[y - 1][x];
-
-                    divergence *= OVERRELAXTION_CONST;
-
-                    p[y][x] = -densityConst * divergence;
-
-                    //Left  += d * s(Left) / Sum of S
-                    u[y][x] += divergence * s[y][x - 1] / sSum;
-                    
-                    //Down  += d * s(Down) / Sum of S
-                    v[y][x] -= divergence * s[y + 1][x] / sSum;
-
-                    //Right     -= d          *  s(Right) / Sum of S
-                    u[y][x + 1] -= divergence * s[y][x + 1] / sSum;
-
-                    //Up        -= d          *  s(Up)   / Sum of S
-                    v[y - 1][x] += divergence * s[y - 1][x] / sSum;
-
-                    if(x  == 2){
-                        System.out.println("====");
-                        System.out.println(String.format("X: %d,  Y: %d,  Divergence: %.3f,   Pressure: %.3f", x, y, divergence,p[y][x]));
-                    }
-
+                if(x == xCells-2){ //Right Boundary
+                    v[y][x] = 0;
+                    u[y][x] = u[y][x - 1];
                 }
-            }    
-        }
-    }
-       
-    public void updateColor(){
-
-        for(int x = 0; x < Width - 2; x++){
-            for(int y = 0; y < Height - 1; y++){
                 
-                if(s[y][x] != 0){
-            
-                    int red = (int) (p[y][x] * PRESSURE_SCALE_FACTOR - 255);
-                    int blue = (int) (255 - p[y][x] * PRESSURE_SCALE_FACTOR);
-                    int green = (int) (255 - p[y][x] * PRESSURE_SCALE_FACTOR * 0.5);
-
-                    red = Math.min(225, Math.max(0, red));
-                    blue = Math.min(225, Math.max(0, blue));
-                    green = Math.min(255, Math.max(0,green));
-
-                    colors[y][x] = new Color(red, green, blue);
+                if(y == 0){ //Top Boundary
+                    u[y][x] = 0;
+                    v[y][x] = v[y + 1][x];
+                }
+                if(y == yCells - 2){
+                    u[y][x] = 0;
+                    v[y][x] = v[y - 1][x];
                 }
             }
-       }
+        }
     }
-    
-    public void updateLiquid(double deltaTime){
+
+
+    public void diffuseDensity(float dt){
+
+        newD = d;
+
+        for(int x = 0; x < xCells; x++){
+            for(int y = 0; y < yCells; y++){
+
+                if(s[y][x] == 0){continue;}
+
+                float deltaD = (d[y + 1][x] + d[y - 1][x] + d[y][x + 1] + d[y][x - 1]) * 0.25f; //Diffuse out the density
+                newD[y][x] += dt * (deltaD - d[y][x]) / (1 + dt);
+            }
+        }
+
+        d = newD;
+    }
+    public void diffuseU(float dt){
+
+        newU = u;
+
+        for(int x = 0; x < xCells; x++){
+            for(int y = 0; y < yCells; y++){
+
+                if(s[y][x] == 0){continue;}
+
+                float deltaU = (u[y + 1][x] + u[y - 1][x] + u[y][x + 1] + u[y][x - 1]) * 0.25f; //Diffuse out the density
+                newU[y][x] += dt * (deltaU - u[y][x]) / (1 + dt);
+            }
+        }
+
+        u = newU;
+    }
+    public void diffuseV(float dt){
+
+        newV = v;
+
+        for(int x = 0; x < xCells; x++){
+            for(int y = 0; y < yCells; y++){
+
+                if(s[y][x] == 0){continue;}
+
+                float deltaD = (v[y + 1][x] + v[y - 1][x] + v[y][x + 1] + v[y][x - 1]) * 0.25f; //Diffuse out the density
+                newV[y][x] += dt * (deltaD - v[y][x]) / (1 + dt);
+            }
+        }
+
+        v = newV;
+    }
+
+    void advect (float dt){
+                
+        int x0;
+        int y0;
         
+
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
+
+                x0 = (int) (x / cellWidth - dt*u[y][x] * cellWidth); //Original Coord X
+                y0 = (int) (y / cellHeight - dt*v[y][x] * cellHeight); //Original Coord Y
+                
+                //Stay Within Bounds.
+
+            }
+        }
+        
+        // x = i-dt0*u[IX(i,j)]; y = j-dt0*v[IX(i,j)];
+        // if (x<0.5) x=0.5; if (x>N+0.5) x=N+ 0.5; i0=(int)x; i1=i0+1;
+        // if (y<0.5) y=0.5; if (y>N+0.5) y=N+ 0.5; j0=(int)y; j1=j0+1;
+        // s1 = x-i0; s0 = 1-s1; t1 = y-j0; t0 = 1-t1;
+        // d[IX(i,j)] = s0*(t0*d0[IX(i0,j0)]+t1*d 0[IX(i0,j1)])+
+        // s1*(t0*d0[IX(i1,j0)]+t1*d0[IX(i1,j1)]);
+    }
+}
+set_bnd ( N, b, d );
+}
+
+
+
+
+    public void updateLiquid(double deltaTime){
         float dt = (float) deltaTime;
 
-        //1. Add Velocity Ect. 
-
+        //Add Forces
         addForces(dt);
 
-        //2. Make Incompressible  Ect.
+        //Diffuse
+        diffuseDensity(dt);
         
-        solveCompressibility(dt);
-
-        //3. Advect Velocity
+        diffuseU(dt);
+        diffuseV(dt);
         
-        //advectVelocity(dt);
-        
+        //Update the colors!
         updateColor();
-        //4. Repeat!
-        
-    
     }
 
 
-    
+    public void updateColor(){
+        for(int y = 0; y < yCells; y++){
+            for(int x = 0; x < xCells; x++){
+
+                //Given cell at X,Y
+
+                if(s[y][x] == 0){continue;}
+
+                float red = 225 - d[y][x];
+                float blue = d[y][x] - 225;
+                float green = 225 - 300;
+
+                red = Math.min(225, Math.max(red, 0));
+                blue = Math.min(225, Math.max(blue, 0));
+                green = Math.min(225, Math.max(green, 0));
+
+                colors[y][x] = new Color((int) red, (int) green, (int) blue);
+            }
+        }
+    }
+
+
     //Visualization Code!
     public Rectangle2D getCell(int i,int j){
         return cells[i][j];
@@ -243,6 +281,13 @@ public class Liquid extends GameWindow{
     public Color getColor(int i, int j){
         return colors[i][j];
     }
+    public int getHeight(){
+        return yCells;
+    }
+    public int getWidth(){
+        return xCells;
+    }
+
     public Line2D getHorizontalLine(int i, int j){
         
         float StartingPointX = (float) cells[i][j].getCenterX()  - cellWidth/2;

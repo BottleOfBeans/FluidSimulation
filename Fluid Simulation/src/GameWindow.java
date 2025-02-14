@@ -67,8 +67,8 @@ public class GameWindow extends JPanel implements Runnable {
 
     public void updateDisplay(Graphics2D graphics){
         
-        for(int i = 0; i < Liquid.Height; i++){ // Displaying all the nice little cells!
-            for(int j = 0; j < Liquid.Width; j++){
+        for(int i = 0; i < l.getHeight(); i++){ // Displaying all the nice little cells!
+            for(int j = 0; j < l.getWidth(); j++){
 
                 graphics.setColor(l.getColor(i, j));
                 graphics.fill(l.getCell(i,j));
@@ -85,6 +85,8 @@ public class GameWindow extends JPanel implements Runnable {
 
 
         }
+        
+        
     }
     
 
