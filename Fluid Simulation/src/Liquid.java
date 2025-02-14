@@ -33,7 +33,7 @@ public class Liquid extends GameWindow{
     final boolean  IF_GRAVITY = false;
     final boolean  IF_WIND_TUNNEL = true;
     final float WIND_TUNNEL_SPEED = 5.0f;
-    final float DENSITY = 50.5f;
+    final float DENSITY = 25.5f;
 
     static final int XCELLS = 50;
     static final int YCELLS = 50;
@@ -120,13 +120,12 @@ public class Liquid extends GameWindow{
                 }
             
                 if(IF_WIND_TUNNEL){
-                    if(x == 1){
+                    if(x == 1 && y != 0 && y != cellHeight-1){
                         u[y][x] = WIND_TUNNEL_SPEED;
                         v[y][x] = 0;
                     }
-                    else if(x == Width-1){
-                        u[y][x] = -WIND_TUNNEL_SPEED;
-                        v[y][x] = 0;
+                    else if(x == Width-1 &&  y != 0 && y != cellHeight-1){
+                        u[y][x] = u[y][x-1];
                     }
                 }
             }
@@ -145,22 +144,29 @@ public class Liquid extends GameWindow{
                     
                     if(s[y][x] == 0){continue;} //If is a wall then don't calc
                     
+                                //Up            Down            Right       Left
                     int sSum = s[y - 1][x] + s[y + 1][x] + s[y][x - 1] + s[y][x + 1];
 
                     if(sSum == 0){continue;} //If surrounded completley by walls then don't calc
 
-                                        //Right  -   Left  +   Down      -   Up
-                    float divergence = u[y][x+1] - u[y][x] + v[y - 1][x] - v[y][x];
+                                        //Right  -   Left  +   Down  -   Up
+                    float divergence = u[y][x+1] - u[y][x] + v[y][x] - v[y - 1][x];
 
                     divergence *= OVERRELAXTION_CONST;
 
                     p[y][x] = -densityConst * divergence;
 
+                    //Left  += d * s(Left) / Sum of S
                     u[y][x] += divergence * s[y][x - 1] / sSum;
-                    v[y][x] += divergence * s[y - 1][x] / sSum;
+                    
+                    //Down  += d * s(Down) / Sum of S
+                    v[y][x] -= divergence * s[y + 1][x] / sSum;
 
+                    //Right     -= d          *  s(Right) / Sum of S
                     u[y][x + 1] -= divergence * s[y][x + 1] / sSum;
-                    v[y - 1][x] -= divergence * s[y - 1][x] / sSum;
+
+                    //Up        -= d          *  s(Up)   / Sum of S
+                    v[y - 1][x] += divergence * s[y - 1][x] / sSum;
 
                     if(x  == 2){
                         System.out.println("====");
@@ -223,7 +229,7 @@ public class Liquid extends GameWindow{
          
                 //Given the indicies y, x for all the value tables!
 
-                if(s[y][x] == 0){return;} //Silly sussy walls should not be calculated at all
+                if(s[y][x] == 0){continue;} //Silly sussy walls should not be calculated at all
             
                 //From here, it is given that it is not a wall, now how should one calculate?
 
