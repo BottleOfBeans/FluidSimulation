@@ -68,30 +68,43 @@ public class Liquid extends GameWindow{
     public Liquid(){
 
         //Initialize the Liquid!
-        for(int row = 0; row < Height; row++){
-            for(int col = 0; col < Width; col++){
+        for(int y = 0; y < Height; y++){
+            for(int x = 0; x < Width; x++){
                 
             
                 //Zero out all the components!
-                u[row][col] = 0f;
-                v[row][col] = 0f;
-                newU[row][col] = 0f;
-                newV[row][col] = 0f;
-                p[row][col] = 0f;
-                s[row][col] = 1;
+                u[y][x] = 0f;
+                v[y][x] = 0f;
+                newU[y][x] = 0f;
+                newV[y][x] = 0f;
+                p[y][x] = 0f;
+                s[y][x] = 1;
 
                 //Set up the Cells!
-                cells[row][col] = new Rectangle2D.Float(col * cellWidth, row * cellHeight, cellWidth, cellHeight);
-                colors[row][col] = Color.gray;
+                cells[y][x] = new Rectangle2D.Float(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+                colors[y][x] = Color.gray;
 
                 /*
                  * Special Cases!
                  */
                 
+                //Container
+                
+                float radius = 5.0f;
+                
+                Vector2 currentCell = new Vector2(x, y);
+                Vector2 center = new Vector2(Width/2, Height/2);
+                
+                if(currentCell.subtract(center).magnitude() <= radius){
+                    s[y][x] = 0;
+                }
+
+
+
                 //Check if a Boundary
-                if(row == 0 || col == 0 || row == Height-1 || col == Width-1){
-                    s[row][col] = 0; // Set the scalar value to show that it is a wall. 
-                    colors[row][col] = Color.DARK_GRAY;
+                if(y == 0 || x == 0 || y == Height-1 || x == Width-1){
+                    s[y][x] = 0; // Set the scalar value to show that it is a wall. 
+                    colors[y][x] = Color.DARK_GRAY;
                 }
 
             }
@@ -177,76 +190,7 @@ public class Liquid extends GameWindow{
             }    
         }
     }
-   
-    public float sampleU(float gx, float gy){
-        
-        int x = (int) (gx/cellWidth); // Cell Location X 
-        int y = (int) (gy/cellHeight); //Cell Location Y
-
-        float u00 = u[y][x]; //Top Left
-        float u01 = u[y][x+1]; //Top Right
-        float u10 = u[y + 1][x]; //Bottom Left
-        float u11 = u[y + 1][x + 1]; //Bottom Right
-
-        float xLeft = Math.abs(gx - (x * cellWidth));
-        float xRight = Math.abs(gx - ((x + 1) * cellWidth));
-
-        float yUp = Math.abs(gy - (y * cellHeight));
-        float yDown = Math.abs(gy - ((y +1 ) * cellWidth));
-        
-        float upU = (u00 * xLeft + u01 * xRight) / (xLeft + xRight);
-        float downU = (u10 * xLeft + u11 * xRight) / (xLeft + xRight);
-
-        return (upU * yUp + downU * yDown)/(yUp + yDown);
-
-    }   
-    public float sampleV(float gx, float gy){
-        
-        int x = (int) (gx/cellWidth); // Cell Location X 
-        int y = (int) (gy/cellHeight); //Cell Location Y
-
-        float u00 = v[y][x]; //Top Left
-        float u01 = v[y][x+1]; //Top Right
-        float u10 = v[y + 1][x]; //Bottom Left
-        float u11 = v[y + 1][x + 1]; //Bottom Right
-
-        float xLeft = Math.abs(gx - (x * cellWidth));
-        float xRight = Math.abs(gx - ((x + 1) * cellWidth));
-
-        float yUp = Math.abs(gy - (y * cellHeight));
-        float yDown = Math.abs(gy - ((y +1 ) * cellWidth));
-        
-        float upU = (u00 * xLeft + u01 * xRight) / (xLeft + xRight);
-        float downU = (u10 * xLeft + u11 * xRight) / (xLeft + xRight);
-
-        return (upU * yUp + downU * yDown)/(yUp + yDown);    
-    }
-
-    public void advectVelocity(float dt){
-    
-        for(int x = 0; x < Height; x++){
-            for(int y = 0; y < Width; y++){
-         
-                //Given the indicies y, x for all the value tables!
-
-                if(s[y][x] == 0){continue;} //Silly sussy walls should not be calculated at all
-            
-                //From here, it is given that it is not a wall, now how should one calculate?
-
-                float newX = cellWidth * x - (u[y][x] * dt);
-                float newY = cellHeight * y - (v[y][x] * dt);
-
-                newU[y][x] = sampleU(newX, newY);
-                newV[y][x] = sampleU(newX, newY);
-        
-            }
-        }
-
-        u = newU;
-        v = newV;
-
-    }
-    
+       
     public void updateColor(){
 
         for(int x = 0; x < Width - 2; x++){
