@@ -45,8 +45,8 @@ public class Liquid extends GameWindow{
     final float VECTOR_LINE_SCALE = 1.9f;
 
     final float GRAVITY = -4.0f;
-    final float OVER_RELAX_CONST = 1.0f;  //Set between 1 and 2.
-    final float DENSITY = 100.0f;
+    final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
+    final float DENSITY = 20.0f;
 
     final boolean WIND_OR_GRAV = true; //TRUE FOR WIND, FALSE FOR GRAV
 
@@ -149,8 +149,8 @@ public class Liquid extends GameWindow{
                         u[y][x] = WIND_TUNNEL_SPEED;
                     }
                     if(x == xCells-2){ //OUTFLOW conditions
-                        u[y][x] = u[y][x-1];
-                        v[y][x] = 0;
+                        u[y][x] = u[y][x - 1]; // Zero-gradient condition for velocity
+                        d[y][x] = d[y][x - 1]; // Zero-gradient condition for density
                     }
                 }else{
                     //Apply Gravity
@@ -167,6 +167,7 @@ public class Liquid extends GameWindow{
                 if(s[y][x] == 0){                
                     v[y][x] = 0;
                     u[y][x] = 0;
+                    d[y][x] = 0; // Ensure density is zero at solid boundaries
                 }
             }
         }
@@ -198,19 +199,21 @@ public class Liquid extends GameWindow{
         
                 // Update velocities, ensuring neighboring cells are not walls
                 if (s[y][x - 1] != 0) {
-                    u[y][x] += divergence * s[y][x - 1];
+                    newU[y][x] = u[y][x] + divergence * s[y][x - 1];
                 }
                 if (s[y][x + 1] != 0) {
-                    u[y][x + 1] -= divergence * s[y][x + 1];
+                    newU[y][x + 1] = u[y][x + 1] - divergence * s[y][x + 1];
                 }
                 if (s[y - 1][x] != 0) {
-                    v[y][x] += divergence * s[y - 1][x];
+                    newV[y][x] = v[y][x] + divergence * s[y - 1][x];
                 }
                 if (s[y + 1][x] != 0) {
-                    v[y + 1][x] -= divergence * s[y + 1][x];
+                    newV[y + 1][x] = v[y + 1][x] - divergence * s[y + 1][x];
                 }
             }
         }
+        u = newU;
+        v = newV;
     }
 
     public void solvePressure(float dt) {
@@ -257,7 +260,7 @@ public class Liquid extends GameWindow{
             for (int y = 0; y < yCells; y++) {
                 if (s[y][x] == 0) continue;
     
-                // Calculate the U values
+                // Calculate the U (Horizontal) values
                 avgV = 0.25f * (v[x - 1][y] + v[x - 1][y + 1] + v[x][y] + v[x][y + 1]);
                 avgU = u[y][x];
     
@@ -282,7 +285,7 @@ public class Liquid extends GameWindow{
     
                 newU[y][x] = w00 * u00 + w01 * u01 + w10 * u10 + w11 * u11;
     
-                // Calculate the V values
+                // Calculate the V (Vertical) values
                 avgU = 0.25f * (u[x - 1][y] + u[x - 1][y + 1] + u[x][y] + u[x][y + 1]);
                 avgV = u[y][x];
     
@@ -372,23 +375,26 @@ public class Liquid extends GameWindow{
     }
 
 
-
     public void updateLiquid(double deltaTime){
         float dt = (float)(deltaTime);
 
         addForces(dt);        
         boundaryCheck();
         
-        //solveCompression();
+        for(int i = 0; i < 20; i++){
+            solveCompression();
+            boundaryCheck();
+        }
+        
+
         solvePressure(dt);
-        boundaryCheck();
 
         advectVelocity(dt);
         boundaryCheck();
 
         advectDensity(dt);
 
-        densityColorUpdate();
+        pressureColorUpdate();
     }
 
     //Visualization Code!

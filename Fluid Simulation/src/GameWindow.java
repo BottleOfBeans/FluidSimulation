@@ -74,13 +74,13 @@ public class GameWindow extends JPanel implements Runnable {
                 graphics.fill(l.getCell(i,j));
 
                 //Grid Lines
-                graphics.setColor(Color.BLACK);
-                graphics.draw(l.getCell(i,j));
+                // graphics.setColor(Color.BLACK);
+                // graphics.draw(l.getCell(i,j));
                 
                 //Velocity Feild
-                graphics.setColor(Color.WHITE);
-                graphics.draw(l.getHorizontalLine(i, j));
-                graphics.draw(l.getVerticalLine(i, j));
+                // graphics.setColor(Color.WHITE);
+                // graphics.draw(l.getHorizontalLine(i, j));
+                // graphics.draw(l.getVerticalLine(i, j));
 
 
             }
