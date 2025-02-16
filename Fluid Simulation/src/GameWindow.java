@@ -73,9 +73,11 @@ public class GameWindow extends JPanel implements Runnable {
                 graphics.setColor(l.getColor(i, j));
                 graphics.fill(l.getCell(i,j));
 
+                //Grid Lines
                 graphics.setColor(Color.BLACK);
                 graphics.draw(l.getCell(i,j));
                 
+                //Velocity Feild
                 graphics.setColor(Color.WHITE);
                 graphics.draw(l.getHorizontalLine(i, j));
                 graphics.draw(l.getVerticalLine(i, j));
@@ -85,8 +87,6 @@ public class GameWindow extends JPanel implements Runnable {
 
 
         }
-        
-        
     }
     
 
@@ -94,7 +94,6 @@ public class GameWindow extends JPanel implements Runnable {
         
         //Update the Cell
         l.updateLiquid(deltaTime);
-
     }
 
     // Function that paints the updated version of the frame {FPS} times a second.
@@ -103,6 +102,11 @@ public class GameWindow extends JPanel implements Runnable {
         // Quick definition of varibles to use with the G2D library
         super.paintComponent(g);
         Graphics2D graphics = (Graphics2D) g;
+
+        //Sets 0,0  to the bottom left
+        graphics.scale(1, -1);
+        graphics.translate(0, -getHeight());
+
 
         //Do Things!
         updateDisplay(graphics);
