@@ -5,6 +5,8 @@ import java.awt.geom.Path2D;
 import java.util.Arrays;
 import java.util.Random;
 
+import javax.crypto.spec.DESKeySpec;
+
 /*
  * Main Ideas
  *  
@@ -39,18 +41,21 @@ public class Liquid extends GameWindow{
     /*
      * CHANGEABLE PARAMETERS
      */
-    final int XCELLS = 98;
-    final int YCELLS = 98;
 
-    final float VECTOR_LINE_SCALE = 1.9f;
+    final int SCENE = 1;
 
-    final float GRAVITY = -4.0f;
+    final int XCELLS = 18;
+    final int YCELLS = 18;
+
+    final float VECTOR_LINE_SCALE = 0.5f;
+
+    final float GRAVITY = -9.8f;
     final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
-    final float DENSITY = 20.0f;
+    final float DENSITY = 100.0f;
 
-    final boolean WIND_OR_GRAV = true; //TRUE FOR WIND, FALSE FOR GRAV
+    final float WIND_TUNNEL_SPEED = 50.0f;
 
-    final float WIND_TUNNEL_SPEED = 5.0f;
+    final int ITER = 10;
 
     //DO NOT TOUCH!
 
@@ -109,7 +114,7 @@ public class Liquid extends GameWindow{
                 
                 //Add Container
 
-                int radius = 10;
+                int radius = 0;
 
                 Vector2 centerPos = new Vector2(xCells/2, yCells/2);
                 Vector2 currentPos = new Vector2(x,y);
@@ -130,269 +135,83 @@ public class Liquid extends GameWindow{
     }    
 
     /*
-     * Starting from Scratch, Iteration 9
+     * Starting from Scratch, Iteration 21
      */
+
+    @SuppressWarnings("unused")
     public void addForces(float dt){
-        for(int x = 0; x < xCells; x++){
-            for(int y = 0; y < yCells; y++){
-
-                //Given a cell of X,Y
-
-                if(s[y][x] == 0){continue;} // Move on if it is a wall, do NOT CALCULATE!
-
-                if(WIND_OR_GRAV){
-                    if(x == 1 && y % 3 == 0){
-                        d[y][x] = 1;
-                    }
-                    if(x == 1 && s[y][x] != 0){ //INFLOW conditions
-                        v[y][x] = 0;
-                        u[y][x] = WIND_TUNNEL_SPEED;
-                    }
-                    if(x == xCells-2){ //OUTFLOW conditions
-                        u[y][x] = u[y][x - 1]; // Zero-gradient condition for velocity
-                        d[y][x] = d[y][x - 1]; // Zero-gradient condition for density
-                    }
-                }else{
-                    //Apply Gravity
-                    v[y][x] = GRAVITY * dt;
-                }                
-            }
-        }
-    }
-
-    public void boundaryCheck(){
-        for(int y = 0; y < yCells; y++){
+        for(int y = 0; y < yCells; y ++){
             for(int x = 0; x < xCells; x++){
-
-                if(s[y][x] == 0){                
-                    v[y][x] = 0;
+                
+                if(s[y][x] == 0){ //Zero Out Boundries
                     u[y][x] = 0;
-                    d[y][x] = 0; // Ensure density is zero at solid boundaries
+                    v[y][x] = 0;
+                    p[y][x] = 0;
+                    d[y][x] = 0;
                 }
+
+                if(SCENE == 0){ //GRAVITY TANK
+                    if(s[y][x] == 1 && s[y - 1][x] != 0){
+                        v[y][x] += GRAVITY;
+                    }
+                } 
+                else if (SCENE == 1){ // WIND TUNNEL
+                    if(x == 1 && y != 0 && y != yCells -1){ //Inflow
+                        u[y][x] = WIND_TUNNEL_SPEED;
+                        v[y][x] = 0;
+                    }
+                    if(x == xCells - 2){ // Outflow
+                        u[y][x] = u[y][x - 1]; //Zero Gradient for Velocity
+                        p[y][x] = p[y][x - 1]; //Zero Gradient for Pressure
+                        d[y][x] = d[y][x - 1]; //Zero Gradient for Density
+                    }
+                }
+                
+            
+            
             }
         }
     }
+    
+    public void solveCompression(float dt){
 
-    public void solveCompression(){
-        for (int y = 1; y < yCells - 1; y++) { // Avoid boundary cells
-            for (int x = 1; x < xCells - 1; x++) {
-        
-                // Skip walls
-                if (s[y][x] == 0) {
-                    continue;
-                }
-        
-                // Sum of neighboring cell states (1 = fluid, 0 = wall)
-                int sSum = s[y - 1][x] + s[y + 1][x] + s[y][x - 1] + s[y][x + 1];
-        
-                // Skip if surrounded by walls
-                if (sSum == 0) {
-                    continue;
-                }
-        
-                // Calculate divergence (staggered grid)
-                float divergence = u[y][x] - u[y][x + 1] + v[y][x] - v[y + 1][x];
-        
-                // Apply over-relaxation and normalize by number of fluid neighbors
-                divergence *= -OVER_RELAX_CONST;
-                divergence /= sSum;
-        
-                // Update velocities, ensuring neighboring cells are not walls
-                if (s[y][x - 1] != 0) {
-                    newU[y][x] = u[y][x] + divergence * s[y][x - 1];
-                }
-                if (s[y][x + 1] != 0) {
-                    newU[y][x + 1] = u[y][x + 1] - divergence * s[y][x + 1];
-                }
-                if (s[y - 1][x] != 0) {
-                    newV[y][x] = v[y][x] + divergence * s[y - 1][x];
-                }
-                if (s[y + 1][x] != 0) {
-                    newV[y + 1][x] = v[y + 1][x] - divergence * s[y + 1][x];
+        float pc = DENSITY * cellHeight / dt;
+
+        for(int i = 0; i < ITER; i ++){
+            for(int x = 0; x < xCells; x++){
+                for(int y = 0; y < yCells; y++){
+
+                    if(s[y][x] == 0){continue;} // Skip Walls!
+
+                    float sSum = s[y][x - 1] + s[y][x + 1] + s[y - 1][x] + s[y + 1][x];
+
+                    if(sSum == 0){continue;} // If Surrounded on all sides then don't calculate;
+
+                    float divergence = u[y][x + 1] - u[y][x] + v[y + 1][x] - v[y][x];
+
+                    float pressure = -divergence / sSum;
+                    
+                    p[y][x] = pc * pressure;
+
+                    u[y][x]     -=      s[y][x - 1]     * pressure;
+                    u[y][x + 1] +=      s[y][x + 1]     * pressure;
+                    v[y][x]     -=      s[y - 1][x]     * pressure;
+                    v[y + 1][x] +=      s[y + 1][x]     * pressure;
+
                 }
             }
         }
-        u = newU;
-        v = newV;
+
     }
-
-    public void solvePressure(float dt) {
-        // Do not reinitialize p here; it should retain its values from the previous iteration.
-    
-        // Temporary array to store the new pressure values
-        float[][] newP = new float[yCells][xCells];
-    
-        for (int y = 1; y < yCells - 1; y++) { // Avoid boundary cells
-            for (int x = 1; x < xCells - 1; x++) {
-    
-                // Skip walls
-                if (s[y][x] == 0) {continue;}
-    
-                // Sum of neighboring cell states (1 = fluid, 0 = wall)
-                int sSum = s[y - 1][x] + s[y + 1][x] + s[y][x - 1] + s[y][x + 1];
-    
-                // Skip if surrounded by walls
-                if (sSum == 0) {continue;}
-    
-                // Calculate divergence (staggered grid)
-                float divergence = (u[y][x] - u[y][x + 1]) / cellWidth + (v[y][x] - v[y + 1][x]) / cellHeight;
-    
-                // Apply over-relaxation and normalize by number of fluid neighbors
-                divergence *= OVER_RELAX_CONST;
-    
-                // Update pressure
-                newP[y][x] = (s[y - 1][x] * p[y - 1][x] +
-                              s[y + 1][x] * p[y + 1][x] +
-                              s[y][x - 1] * p[y][x - 1] +
-                              s[y][x + 1] * p[y][x + 1] -
-                              divergence) / sSum;
-            }
-        }
-    
-        // Update the pressure field
-        p = newP;
-    }
-
-    public void advectVelocity(float dt) {
-        float xPosition, yPosition, u00, u01, u10, u11, e, t, w00, w10, w01, w11, avgV, avgU;
-    
-        for (int x = 0; x < xCells; x++) {
-            for (int y = 0; y < yCells; y++) {
-                if (s[y][x] == 0) continue;
-    
-                // Calculate the U (Horizontal) values
-                avgV = 0.25f * (v[x - 1][y] + v[x - 1][y + 1] + v[x][y] + v[x][y + 1]);
-                avgU = u[y][x];
-    
-                xPosition = x * cellWidth - dt * avgU;
-                yPosition = (y + 0.5f) * cellHeight - dt * avgV;
-    
-                int xIndex = Math.max(0, Math.min(xCells - 1, (int) (xPosition / cellWidth)));
-                int yIndex = Math.max(0, Math.min(yCells - 1, (int) (yPosition / cellHeight)));
-    
-                u00 = u[yIndex][xIndex];
-                u01 = u[yIndex][xIndex + 1];
-                u10 = u[yIndex + 1][xIndex];
-                u11 = u[yIndex + 1][xIndex + 1];
-    
-                e = (xPosition / cellWidth) - xIndex;
-                t = (yPosition / cellHeight) - yIndex;
-    
-                w00 = (1 - e) * (1 - t);
-                w01 = e * (1 - t);
-                w10 = (1 - e) * t;
-                w11 = e * t;
-    
-                newU[y][x] = w00 * u00 + w01 * u01 + w10 * u10 + w11 * u11;
-    
-                // Calculate the V (Vertical) values
-                avgU = 0.25f * (u[x - 1][y] + u[x - 1][y + 1] + u[x][y] + u[x][y + 1]);
-                avgV = u[y][x];
-    
-
-                xPosition = x * cellWidth - dt * avgU;
-                yPosition = (y + 0.5f) * cellHeight - dt * avgV;
-    
-                xIndex = Math.max(0, Math.min(xCells - 1, (int) (xPosition / cellWidth)));
-                yIndex = Math.max(0, Math.min(yCells - 1, (int) (yPosition / cellHeight)));
-    
-                u00 = v[yIndex][xIndex];
-                u01 = v[yIndex][xIndex + 1];
-                u10 = v[yIndex + 1][xIndex];
-                u11 = v[yIndex + 1][xIndex + 1];
-    
-                e = (xPosition / cellWidth) - xIndex;
-                t = (yPosition / cellHeight) - yIndex;
-    
-                w00 = (1 - e) * (1 - t);
-                w01 = e * (1 - t);
-                w10 = (1 - e) * t;
-                w11 = e * t;
-    
-                newV[y][x] = w00 * u00 + w01 * u01 + w10 * u10 + w11 * u11;
-            }
-        }
-    
-        // Update velocities
-        u = newU;
-        v = newV;
-    }
-
-    public void advectDensity(float dt) {
-        float xPosition, yPosition, u00, u01, u10, u11, e, t, w00, w10, w01, w11, avgV, avgU;
-    
-        for (int y = 0; y < yCells; y++) {
-            for (int x = 0; x < xCells; x++) {
-                if (s[y][x] == 0) {
-                    continue; // Skip solid cells
-                }
-    
-                // Average velocities for backtracing
-                avgV = 0.25f * (v[Math.max(0, x - 1)][y] + v[Math.max(0, x - 1)][Math.min(yCells - 1, y + 1)] +
-                              v[x][y] + v[x][Math.min(yCells - 1, y + 1)]);
-                avgU = 0.25f * (u[Math.max(0, x - 1)][y] + u[Math.max(0, x - 1)][Math.min(yCells - 1, y + 1)] +
-                              u[x][y] + u[x][Math.min(yCells - 1, y + 1)]);
-    
-                // Backtrace the position
-                xPosition = x * cellWidth - dt * avgU;
-                yPosition = y * cellHeight - dt * avgV;
-    
-                // Clamp the position to grid boundaries
-                xPosition = Math.max(0, Math.min((xCells - 1) * cellWidth, xPosition));
-                yPosition = Math.max(0, Math.min((yCells - 1) * cellHeight, yPosition));
-    
-                // Calculate indices for interpolation
-                int xIndex = (int) (xPosition / cellWidth);
-                int yIndex = (int) (yPosition / cellHeight);
-    
-                // Clamp indices to avoid out-of-bounds errors
-                xIndex = Math.max(0, Math.min(xCells - 2, xIndex)); // xCells - 2 to allow xIndex + 1
-                yIndex = Math.max(0, Math.min(yCells - 2, yIndex)); // yCells - 2 to allow yIndex + 1
-    
-                // Get neighboring density values
-                u00 = d[yIndex][xIndex];
-                u01 = d[yIndex][xIndex + 1];
-                u10 = d[yIndex + 1][xIndex];
-                u11 = d[yIndex + 1][xIndex + 1];
-    
-                // Calculate fractional parts
-                e = (xPosition / cellWidth) - xIndex;
-                t = (yPosition / cellHeight) - yIndex;
-    
-                // Calculate interpolation weights
-                w00 = (1 - e) * (1 - t);
-                w01 = e * (1 - t);
-                w10 = (1 - e) * t;
-                w11 = e * t;
-    
-                // Interpolate density
-                newD[y][x] = w00 * u00 + w01 * u01 + w10 * u10 + w11 * u11;
-            }
-        }
-    
-        // Update density field
-        d = newD;
-    }
-
 
     public void updateLiquid(double deltaTime){
-        float dt = (float)(deltaTime);
+        float dt = (float) deltaTime;
 
-        addForces(dt);        
-        boundaryCheck();
-        
-        for(int i = 0; i < 20; i++){
-            solveCompression();
-            boundaryCheck();
-        }
-        
+        addForces(dt);
 
-        solvePressure(dt);
+        solveCompression(dt); //More or less works in a grav tank.
 
-        advectVelocity(dt);
-        boundaryCheck();
-
-        advectDensity(dt);
+        System.out.println(p[(int) yCells/2][(int) (xCells - 2)]);
 
         pressureColorUpdate();
     }

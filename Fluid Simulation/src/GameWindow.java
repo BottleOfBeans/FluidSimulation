@@ -10,7 +10,7 @@ public class GameWindow extends JPanel implements Runnable {
     static int gameHeight = 1000; // gameRowAmount*ActualTileSize;
 
     
-    int FPS = 60;
+    int FPS = 10;
 
     /*
      *  FUN STUFF!
@@ -74,13 +74,13 @@ public class GameWindow extends JPanel implements Runnable {
                 graphics.fill(l.getCell(i,j));
 
                 //Grid Lines
-                // graphics.setColor(Color.BLACK);
-                // graphics.draw(l.getCell(i,j));
+                graphics.setColor(Color.BLACK);
+                graphics.draw(l.getCell(i,j));
                 
                 //Velocity Feild
-                // graphics.setColor(Color.WHITE);
-                // graphics.draw(l.getHorizontalLine(i, j));
-                // graphics.draw(l.getVerticalLine(i, j));
+                graphics.setColor(Color.WHITE);
+                graphics.draw(l.getHorizontalLine(i, j));
+                graphics.draw(l.getVerticalLine(i, j));
 
 
             }
@@ -90,10 +90,9 @@ public class GameWindow extends JPanel implements Runnable {
     }
     
 
-    public void update(double dt){
-        
+    public void update(double dt){      
         //Update the Cell
-        l.updateLiquid(deltaTime);
+        l.updateLiquid(deltaTime / FPS);
     }
 
     // Function that paints the updated version of the frame {FPS} times a second.
