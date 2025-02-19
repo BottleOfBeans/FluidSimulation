@@ -44,18 +44,18 @@ public class Liquid extends GameWindow{
 
     final int SCENE = 1;
 
-    final int XCELLS = 18;
-    final int YCELLS = 18;
+    final int XCELLS = 498;
+    final int YCELLS = 498;
 
     final float VECTOR_LINE_SCALE = 0.5f;
 
     final float GRAVITY = -9.8f;
     final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
-    final float DENSITY = 100.0f;
+    final float DENSITY = 10.0f;
 
     final float WIND_TUNNEL_SPEED = 50.0f;
 
-    final int ITER = 10;
+    final int ITER = 20;
 
     //DO NOT TOUCH!
 
@@ -64,7 +64,6 @@ public class Liquid extends GameWindow{
 
     float cellWidth = gameWidth/xCells;
     float cellHeight = gameHeight/yCells;
-
 
     /*
      *  U --> Stored at the middle right of a cell 
@@ -114,7 +113,7 @@ public class Liquid extends GameWindow{
                 
                 //Add Container
 
-                int radius = 0;
+                int radius = 100;
 
                 Vector2 centerPos = new Vector2(xCells/2, yCells/2);
                 Vector2 currentPos = new Vector2(x,y);
@@ -156,19 +155,19 @@ public class Liquid extends GameWindow{
                     }
                 } 
                 else if (SCENE == 1){ // WIND TUNNEL
-                    if(x == 1 && y != 0 && y != yCells -1){ //Inflow
+                    if(x == 1 && y != 0 && y != yCells - 1){ // Inflow
                         u[y][x] = WIND_TUNNEL_SPEED;
                         v[y][x] = 0;
                     }
-                    if(x == xCells - 2){ // Outflow
-                        u[y][x] = u[y][x - 1]; //Zero Gradient for Velocity
-                        p[y][x] = p[y][x - 1]; //Zero Gradient for Pressure
-                        d[y][x] = d[y][x - 1]; //Zero Gradient for Density
+                    if(x == xCells - 1){ // Outflow
+                        u[y][x] = u[y][x - 1]; // Zero Gradient for Velocity
+                        p[y][x] = p[y][x - 1]; // Zero Gradient for Pressure
+                        d[y][x] = d[y][x - 1]; // Zero Gradient for Density
                     }
                 }
                 
             
-            
+                
             }
         }
     }
@@ -204,6 +203,45 @@ public class Liquid extends GameWindow{
 
     }
 
+    public void advect(float dt){
+
+    //     float prevX, prevY;
+
+    //     for(int y = 0; y < yCells; y++){
+    //         for(int x = 0; x < xCells; x++){
+
+    //             //Given Cell of X,Y
+
+    //             if(s[y][x] == 0){continue;} // Skip Walls!
+
+    //             //Horizontal Component
+
+    //             prevX = x * cellWidth - dt * u[y][x];
+    //             prevY = (y+ 0.5f) * cellHeight - dt * sampleV(x * cellWidth, (y + 0.5f) * cellHeight);
+
+    //             newU[y][x] = sampleU(prevX, prevY);
+
+    //             //Vertical Component
+    //             prevX = (x + 0.5f) * cellWidth - dt * sampleU((x + 0.5f) * cellWidth, y * cellHeight);
+    //             prevY = y * cellHeight - dt * v[y][x];
+
+    //             newV[y][x] = sampleV(prevX, prevY);
+
+
+    //             //Density Component
+    //             prevX = x * cellWidth - dt * u[y][x];
+    //             prevY = y * cellHeight - dt * v[y][x];
+
+    //             newD[y][x] = sampleD(prevX, prevY);
+
+    //         }
+    //     }
+
+    //     u = newU.clone();
+    //     v = newV.clone();
+    //     d = newD.clone();
+    }
+
     public void updateLiquid(double deltaTime){
         float dt = (float) deltaTime;
 
@@ -211,7 +249,7 @@ public class Liquid extends GameWindow{
 
         solveCompression(dt); //More or less works in a grav tank.
 
-        System.out.println(p[(int) yCells/2][(int) (xCells - 2)]);
+        advect(dt);
 
         pressureColorUpdate();
     }
@@ -321,5 +359,46 @@ public class Liquid extends GameWindow{
         float StartingPointX = (float) cells[i][j].getCenterX();
         float StartingPointY = (float) cells[i][j].getCenterY() - cellHeight/2;
         return new Line2D.Double(StartingPointX, StartingPointY, StartingPointX, StartingPointY + v[i][j] * VECTOR_LINE_SCALE);
+    }
+
+    public void drawStreamlines(Graphics2D g) {
+        
+        int streamAmount = 30;
+        int streamLength = 40;
+    
+        // Precompute step sizes
+        int xStep = GameWindow.gameWidth / streamAmount;
+        int yStep = GameWindow.gameHeight / streamAmount;
+    
+        // Precompute bounds
+        int maxXCell = xCells - 1;
+        int maxYCell = yCells - 1;
+    
+        // Temporary variables to avoid object creation in the loop
+        float sx, sy;
+        int xPos, yPos;
+    
+        for (int x = 0; x < GameWindow.gameWidth; x += xStep) {
+            for (int y = 0; y < GameWindow.gameHeight; y += yStep) {
+                sx = x;
+                sy = y;
+    
+                for (int i = 0; i < streamLength; i++) {
+                    xPos = (int) (sx / cellWidth);
+                    yPos = (int) (sy / cellHeight);
+    
+                    // Clamp xPos and yPos within bounds
+                    xPos = Math.min(maxXCell, Math.max(0, xPos));
+                    yPos = Math.min(maxYCell, Math.max(0, yPos));
+    
+                    // Draw the streamline segment
+                    g.drawLine((int) sx, (int) sy, (int) (sx + u[yPos][xPos]), (int) (sy + v[yPos][xPos]));
+    
+                    // Update the position
+                    sx += u[yPos][xPos];
+                    sy += v[yPos][xPos];
+                }
+            }
+        }
     }
 }
