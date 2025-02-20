@@ -40,18 +40,18 @@ public class Liquid extends GameWindow{
 
     final int SCENE = 1;
 
-    final int XCELLS = 498;
-    final int YCELLS = 498;
+    final int XCELLS = 248;
+    final int YCELLS = 248;
 
     final float VECTOR_LINE_SCALE = 0.5f;
 
     final float GRAVITY = -9.8f;
     final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
-    final float DENSITY = 10.0f;
+    final float DENSITY = 100.0f;
 
-    final float WIND_TUNNEL_SPEED = 50.0f;
+    final float WIND_TUNNEL_SPEED = 100.0f;
 
-    final int ITER = 20;
+    final int ITER = 10;
 
     //DO NOT TOUCH!
 
@@ -109,7 +109,7 @@ public class Liquid extends GameWindow{
                 
                 //Add Container
 
-                int radius = 10;
+                int radius = 30;
 
                 Vector2 centerPos = new Vector2(xCells/2, yCells/2);
                 Vector2 currentPos = new Vector2(x,y);
@@ -158,17 +158,20 @@ public class Liquid extends GameWindow{
                     if(x == 1 && y != 0 && y != yCells-1){ // Inflow
                         v[y][x] = 0;
                         u[y][x] = WIND_TUNNEL_SPEED;
+                        
+                        //Single Big Stream
+                        if(y % 20 == 0){
+                            for(int i = 0; i < 3; i++){
+                                d[y + i][x] += 5.0f;
+                            }
+                        }
+
                     }
                     if(x == xCells - 1){ // Outflow
                         u[y][x] = u[y][x - 1]; // Zero Gradient for Velocity
-                        p[y][x] = p[y][x - 1]; // Zero Gradient for Pressure
                         d[y][x] = d[y][x - 1]; // Zero Gradient for Density
                     }
-                    if(x == 1 && y == yCells/2 - yCells/16){
-                        for(int i = 0; i < yCells/8; i++){
-                            d[y + i][x] = 25.0f;
-                        }
-                    }
+
                 }
                 
             }
@@ -206,67 +209,118 @@ public class Liquid extends GameWindow{
 
     }
 
-    public void advect(float dt){
-
-    //     float prevX, prevY;
-
-    //     for(int y = 0; y < yCells; y++){
-    //         for(int x = 0; x < xCells; x++){
-
-    //             //Given Cell of X,Y
-
-    //             if(s[y][x] == 0){continue;} // Skip Walls!
-
-    //             //Horizontal Component
-
-    //             prevX = x * cellWidth - dt * u[y][x];
-    //             prevY = (y+ 0.5f) * cellHeight - dt * sampleV(x * cellWidth, (y + 0.5f) * cellHeight);
-
-    //             newU[y][x] = sampleU(prevX, prevY);
-
-    //             //Vertical Component
-    //             prevX = (x + 0.5f) * cellWidth - dt * sampleU((x + 0.5f) * cellWidth, y * cellHeight);
-    //             prevY = y * cellHeight - dt * v[y][x];
-
-    //             newV[y][x] = sampleV(prevX, prevY);
-
-
-    //             //Density Component
-    //             prevX = x * cellWidth - dt * u[y][x];
-    //             prevY = y * cellHeight - dt * v[y][x];
-
-    //             newD[y][x] = sampleD(prevX, prevY);
-
-    //         }
-    //     }
-
-    //     u = newU.clone();
-    //     v = newV.clone();
-    //     d = newD.clone();
+    public float sampleD(float x, float y) {
+        float gridX = x / cellWidth;
+        float gridY = y / cellHeight;
+    
+        // Adjust to prevent interpolation errors
+        gridX = Math.max(1, Math.min(xCells - 2, gridX));
+        gridY = Math.max(1, Math.min(yCells - 2, gridY));
+    
+        int x0 = (int) gridX;
+        int y0 = (int) gridY;
+        int x1 = Math.min(x0 + 1, xCells - 2);
+        int y1 = Math.min(y0 + 1, yCells - 2);
+    
+        float tx = gridX - x0;
+        float ty = gridY - y0;
+    
+        float d00 = d[y0][x0];
+        float d01 = d[y0][x1];
+        float d10 = d[y1][x0];
+        float d11 = d[y1][x1];
+    
+        float d0 = d00 * (1 - tx) + d01 * tx;
+        float d1 = d10 * (1 - tx) + d11 * tx;
+    
+        return d0 * (1 - ty) + d1 * ty;
     }
+    public float sampleU(float x, float y) {
+        float gridX = x / cellWidth;
+        float gridY = y / cellHeight;
+    
+        gridX = Math.max(1, Math.min(xCells - 2, gridX));
+        gridY = Math.max(1, Math.min(yCells - 2, gridY));
+    
+        int x0 = (int) gridX;
+        int y0 = (int) gridY;
+        int x1 = Math.min(x0 + 1, xCells - 2);
+        int y1 = Math.min(y0 + 1, yCells - 2);
+    
+        float tx = gridX - x0;
+        float ty = gridY - y0;
+    
+        float u00 = u[y0][x0];
+        float u01 = u[y0][x1];
+        float u10 = u[y1][x0];
+        float u11 = u[y1][x1];
+    
+        float u0 = u00 * (1 - tx) + u01 * tx;
+        float u1 = u10 * (1 - tx) + u11 * tx;
+    
+        return u0 * (1 - ty) + u1 * ty;
+    }
+    public float sampleV(float x, float y) {
+        float gridX = x / cellWidth;
+        float gridY = y / cellHeight;
+    
+        gridX = Math.max(1, Math.min(xCells - 2, gridX));
+        gridY = Math.max(1, Math.min(yCells - 2, gridY));
+    
+        int x0 = (int) gridX;
+        int y0 = (int) gridY;
+        int x1 = Math.min(x0 + 1, xCells - 2);
+        int y1 = Math.min(y0 + 1, yCells - 2);
+    
+        float tx = gridX - x0;
+        float ty = gridY - y0;
+    
+        float v00 = v[y0][x0];
+        float v01 = v[y0][x1];
+        float v10 = v[y1][x0];
+        float v11 = v[y1][x1];
+    
+        float v0 = v00 * (1 - tx) + v01 * tx;
+        float v1 = v10 * (1 - tx) + v11 * tx;
+    
+        return v0 * (1 - ty) + v1 * ty;
+    }
+    
 
-    public void advectDensity(float dt){
-        for(int y = 0; y < yCells; y++){
-            for(int x = 2; x < xCells; x++){
-                if(s[y][x] == 0){continue;}
 
-                //Given a cell of X, Y
-                float oldX = (x + 0.5f) * cellWidth  - (u[y][x]) * dt;
-                float oldY = (y + 0.5f) * cellHeight - (v[y][x]) * dt;
-
-                int xPos = (int) (oldX/cellWidth);
-                int yPos = (int) (oldY/cellHeight);
-
-                xPos = Math.max(1, Math.min(xCells - 2, xPos));
-                yPos = Math.max(1, Math.min(yCells - 2, yPos));
-
-                newD[y][x] = d[yPos][xPos];
-                
+    public void advect(float dt) {
+        float prevX, prevY;
+        
+        for (int y = 1; y < yCells - 1; y++) { // Skip boundary cells
+            for (int x = 1; x < xCells - 1; x++) { // Skip boundary cells
+    
+                if (s[y][x] == 0) {
+                    continue; // Skip walls
+                }
+    
+                // Advect horizontal velocity (u)
+                prevX = x * cellWidth - dt * u[y][x];
+                prevY = (y + 0.5f) * cellHeight - dt * sampleV(x * cellWidth, (y + 0.5f) * cellHeight);
+                newU[y][x] = sampleU(prevX, prevY);
+    
+                // Advect vertical velocity (v)
+                prevX = (x + 0.5f) * cellWidth - dt * sampleU((x + 0.5f) * cellWidth, y * cellHeight);
+                prevY = y * cellHeight - dt * v[y][x];
+                newV[y][x] = sampleV(prevX, prevY);
+    
+                // Advect density (d)
+                prevX = x * cellWidth - dt * u[y][x];
+                prevY = y * cellHeight - dt * v[y][x];
+                newD[y][x] = sampleD(prevX, prevY);
             }
         }
-
+    
+        // Update the fields with the new values
+        u = newU.clone();
+        v = newV.clone();
         d = newD.clone();
     }
+
 
     public void updateLiquid(double deltaTime){
         float dt = (float) deltaTime;
@@ -276,12 +330,9 @@ public class Liquid extends GameWindow{
         solveCompression(dt); //More or less works in a grav tank.
 
         advect(dt);
-        advectDensity(dt);
 
         densityColorUpdate();
     }
-
-
     //Visualization Code!
     
     public void pressureColorUpdate(){
@@ -352,7 +403,7 @@ public class Liquid extends GameWindow{
                     // Map normalized pressure to color range [0, 255]
                     int red = (int) (255 * normalizedPressure);
                     int blue = 255 - red;
-                    int green = 0; // Or adjust based on your needs
+                    int green = (int) (red/3); // Or adjust based on your needs
     
                     // Ensure color values are within [0, 255]
                     red = Math.min(255, Math.max(0, red));
@@ -454,7 +505,7 @@ public class Liquid extends GameWindow{
 
     public void drawStreamlines(Graphics2D g) {
         
-        int streamAmount = 30;
+        int streamAmount = 10;
         int streamLength = 40;
     
         // Precompute step sizes
