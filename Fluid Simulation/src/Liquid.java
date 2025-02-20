@@ -1,11 +1,7 @@
 import java.awt.*;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
-import java.awt.geom.Path2D;
-import java.util.Arrays;
 import java.util.Random;
-
-import javax.crypto.spec.DESKeySpec;
 
 /*
  * Main Ideas
@@ -96,11 +92,11 @@ public class Liquid extends GameWindow{
                 
             
                 //Zero out all the components!
-                u[y][x] = 0f;
-                v[y][x] = 0f;
-                newU[y][x] = 0f;
-                newV[y][x] = 0f;
-                d[y][x] = 0f;
+                u[y][x] = 0.0f;
+                v[y][x] = 0.0f;
+                newU[y][x] = 0.0f;
+                newV[y][x] = 0.0f;
+                d[y][x] = 0.0f;
                 s[y][x] = 1;
 
                 //Set up the Cells!
@@ -113,7 +109,7 @@ public class Liquid extends GameWindow{
                 
                 //Add Container
 
-                int radius = 100;
+                int radius = 10;
 
                 Vector2 centerPos = new Vector2(xCells/2, yCells/2);
                 Vector2 currentPos = new Vector2(x,y);
@@ -139,6 +135,10 @@ public class Liquid extends GameWindow{
 
     @SuppressWarnings("unused")
     public void addForces(float dt){
+
+        Random random = new Random();
+
+
         for(int y = 0; y < yCells; y ++){
             for(int x = 0; x < xCells; x++){
                 
@@ -155,18 +155,21 @@ public class Liquid extends GameWindow{
                     }
                 } 
                 else if (SCENE == 1){ // WIND TUNNEL
-                    if(x == 1 && y != 0 && y != yCells - 1){ // Inflow
-                        u[y][x] = WIND_TUNNEL_SPEED;
+                    if(x == 1 && y != 0 && y != yCells-1){ // Inflow
                         v[y][x] = 0;
+                        u[y][x] = WIND_TUNNEL_SPEED;
                     }
                     if(x == xCells - 1){ // Outflow
                         u[y][x] = u[y][x - 1]; // Zero Gradient for Velocity
                         p[y][x] = p[y][x - 1]; // Zero Gradient for Pressure
                         d[y][x] = d[y][x - 1]; // Zero Gradient for Density
                     }
+                    if(x == 1 && y == yCells/2 - yCells/16){
+                        for(int i = 0; i < yCells/8; i++){
+                            d[y + i][x] = 25.0f;
+                        }
+                    }
                 }
-                
-            
                 
             }
         }
@@ -242,6 +245,29 @@ public class Liquid extends GameWindow{
     //     d = newD.clone();
     }
 
+    public void advectDensity(float dt){
+        for(int y = 0; y < yCells; y++){
+            for(int x = 2; x < xCells; x++){
+                if(s[y][x] == 0){continue;}
+
+                //Given a cell of X, Y
+                float oldX = (x + 0.5f) * cellWidth  - (u[y][x]) * dt;
+                float oldY = (y + 0.5f) * cellHeight - (v[y][x]) * dt;
+
+                int xPos = (int) (oldX/cellWidth);
+                int yPos = (int) (oldY/cellHeight);
+
+                xPos = Math.max(1, Math.min(xCells - 2, xPos));
+                yPos = Math.max(1, Math.min(yCells - 2, yPos));
+
+                newD[y][x] = d[yPos][xPos];
+                
+            }
+        }
+
+        d = newD.clone();
+    }
+
     public void updateLiquid(double deltaTime){
         float dt = (float) deltaTime;
 
@@ -250,9 +276,11 @@ public class Liquid extends GameWindow{
         solveCompression(dt); //More or less works in a grav tank.
 
         advect(dt);
+        advectDensity(dt);
 
-        pressureColorUpdate();
+        densityColorUpdate();
     }
+
 
     //Visualization Code!
     
@@ -337,6 +365,69 @@ public class Liquid extends GameWindow{
     
     }
     
+    public void combinedColorUpdate(){
+        float dMin = Float.MAX_VALUE;
+        float dMax = Float.MIN_VALUE;
+        float pMin = Float.MAX_VALUE;
+        float pMax = Float.MIN_VALUE;
+
+
+        // First pass to find the min and max pressure values
+        for (int y = 0; y < yCells; y++) {
+            for (int x = 0; x < xCells; x++) {
+                if (s[y][x] != 0) {
+                    dMin = Math.min(dMin, d[y][x]);
+                    dMax = Math.max(dMax, d[y][x]);
+                    pMin = Math.min(dMin, d[y][x]);
+                    pMax = Math.max(dMax, d[y][x]);
+
+                }
+            }
+        }
+
+        // Second pass to update colors based on normalized pressure
+        for (int y = 0; y < yCells; y++) {
+            for (int x = 0; x < xCells; x++) {
+                if (s[y][x] == 0) {
+                    continue; // Skip cells with no fluid
+                }
+
+                // Normalize pressure to [0, 1] range
+                float normalizedPressure = (d[y][x] - dMin) / (dMax - dMin);
+
+                // Map normalized pressure to color range [0, 255]
+                int red = (int) (255 * normalizedPressure);
+                int blue = 255 - red;
+                int green = 0; // Or adjust based on your needs
+
+                // Ensure color values are within [0, 255]
+                red = Math.min(255, Math.max(0, red));
+                blue = Math.min(255, Math.max(0, blue));
+                green = Math.min(255, Math.max(0, green));
+
+                float normalizedDensity = (p[y][x] - pMin) / (pMax - pMin);
+
+                // Map normalized pressure to color range [0, 255]
+                red += (int) (255 * normalizedDensity);
+                blue += 255 - red;
+                green += 0; // Or adjust based on your needs
+
+                red /= 2;
+                blue /=2;
+                green /=2;
+
+                // Ensure color values are within [0, 255]
+                red = Math.min(255, Math.max(0, red));
+                blue = Math.min(255, Math.max(0, blue));
+                green = Math.min(255, Math.max(0, green));
+
+
+                colors[y][x] = new Color(red, green, blue);
+            }
+        }
+
+    }
+
     public Rectangle2D getCell(int i,int j){
         return cells[i][j];
     }
