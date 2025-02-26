@@ -90,7 +90,7 @@ public class GameWindow extends JPanel implements Runnable {
 
         //Draw Streamlines
         graphics.setColor(Color.WHITE);
-        //l.drawStreamlines(graphics);
+        l.drawStreamlines(graphics);
 
     }
     
