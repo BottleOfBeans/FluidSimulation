@@ -25,7 +25,7 @@ public class Main {
         GameWindow gameWindow = new GameWindow();
         window.add(gameWindow);
         // No Header (Borderless)
-        //window.setUndecorated(true);
+        window.setUndecorated(true);
 
         // Pack, creating and starting the FPS loop
         window.pack();

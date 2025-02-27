@@ -42,12 +42,17 @@ public class Liquid extends GameWindow{
      * SCENE 1: A GRAVITY TANK, FOR PRESSURE VISUALIZATION AND GOOD FOR CHECKING COMPRESSION SOLVER
      * SCENE 2: A WIND TUNNEL, THE MAIN SCENE THAT I AM TRYING TO IMPLEMENT AS FLUID TRAVERSES AROUND A SPHERE
      * SCENE 3: VELOCITY INJECTOR, A VELOCITY STREAM INTRODUCED INTO A STATIC TANK
+     * 
+     * CONTAINER 1: SPHERE
+     * CONTAINER 2: CUBE
+     * CONTAINER 3: PEGS
      */
 
-    final int SCENE = 3;
+    final int SCENE = 1;
+    final int CONTAINER = 1;
 
-    final int XCELLS = 98;
-    final int YCELLS = 98;
+    final int XCELLS = 198;
+    final int YCELLS = 198;
 
     final float VECTOR_LINE_SCALE = 0.5f;
 
@@ -55,14 +60,15 @@ public class Liquid extends GameWindow{
     final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
     final float DENSITY = 100.0f;
 
-    final float WIND_TUNNEL_SPEED = 200.0f;
+    final float WIND_TUNNEL_SPEED = 500.0f;
+    final float DENSITY_STREAM_SPEED = 15.0f;
 
     final int ITER = 200;
 
     //DO NOT TOUCH!
 
-    int xCells = XCELLS + 2;
-    int yCells = YCELLS + 2;
+    int xCells = XCELLS;
+    int yCells = YCELLS;
 
     float cellWidth = gameWidth/xCells;
     float cellHeight = gameHeight/yCells;
@@ -107,7 +113,7 @@ public class Liquid extends GameWindow{
 
                 //Set up the Cells!
                 cells[y][x] = new Rectangle2D.Float(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
-                colors[y][x] = Color.gray;
+                colors[y][x] = Color.black;
 
                 /*
                  * Special Cases!
@@ -115,19 +121,25 @@ public class Liquid extends GameWindow{
                 
                 //Add Container
 
-                int radius = 10;
-
-                Vector2 centerPos = new Vector2(xCells/2, yCells/2);
-                Vector2 currentPos = new Vector2(x,y);
-                if(currentPos.subtract(centerPos).magnitude() < radius){
-                    s[y][x] = 0;
+                if(CONTAINER == 0){ // No Container
+                    ; 
+                }
+                else if (CONTAINER == 1){ // Container is a sphere
+                    int radius = 20;
+                    Vector2 centerPos = new Vector2(xCells/2 - 40, yCells/2);
+                    Vector2 currentPos = new Vector2(x,y);
+                    if(currentPos.subtract(centerPos).magnitude() < radius){
+                        s[y][x] = 0;
+                        colors[y][x] = Color.GRAY;
+                    }
+    
+                    //Check if a Boundary
+                    if(y == 0 || x == 0 || y == yCells-1 || x == xCells-1){
+                        s[y][x] = 0; // Set the scalar value to show that it is a wall. 
+                        colors[y][x] = Color.DARK_GRAY;
+                    }
                 }
 
-                //Check if a Boundary
-                if(y == 0 || x == 0 || y == yCells-1 || x == xCells-1){
-                    s[y][x] = 0; // Set the scalar value to show that it is a wall. 
-                    colors[y][x] = Color.DARK_GRAY;
-                }
 
             }
         }
@@ -161,21 +173,30 @@ public class Liquid extends GameWindow{
                         v[y][x] = 0;
                         u[y][x] = WIND_TUNNEL_SPEED;
                         
+
+                        Random rand = new Random();
+                        int offset = rand.nextInt(5) - 3;
+
                         //Single Big Stream
-                        if(y == (int) (yCells/2 - 10)){
-                            for(int i = 0; i < 20; i++){
-                                d[y + i][x] = 25.0f;
-                            }
+                        // if(y == (int) (yCells/2 - (1 + offset)) &&  x == 1){
+                        //     for(int i = 0; i < 4; i ++){
+                        //         d[y - offset + i][x + 2] += DENSITY_STREAM_SPEED;
+                        //     }
+                        // }
+
+                        if(y % 20 == 0){
+                            d[y][x + 2] += DENSITY_STREAM_SPEED * 5;
                         }
 
                     }
                 }
-                else if (SCENE == 3){//VELOCITY INJECTOR
-                    if(y == (int) (yCells/2) && x == 1){
-                        d[y][x] = 25.0f;
-                        u[y][x] = WIND_TUNNEL_SPEED;
-                    }
-                
+                else if (SCENE == 2){//VELOCITY INJECTOR
+                    Random rand = new Random();
+                    int offset = rand.nextInt(6) - 3;
+                    if(y == (int) (yCells/2 - offset) && x == 1){
+                        d[y + offset][x] = DENSITY_STREAM_SPEED;
+                        u[y + offset][x] += WIND_TUNNEL_SPEED;
+                    }             
                 }
                 
             }
@@ -187,8 +208,8 @@ public class Liquid extends GameWindow{
         float pc = DENSITY * cellHeight / dt;
 
         for(int i = 0; i < ITER; i ++){
-            for(int x = 0; x < xCells; x++){
-                for(int y = 0; y < yCells; y++){
+            for(int x = 1; x < xCells - 1; x++){
+                for(int y = 1; y < yCells - 1; y++){
 
                     if(s[y][x] == 0){continue;} // Skip Walls!
 
@@ -200,7 +221,7 @@ public class Liquid extends GameWindow{
 
                     float pressure = -divergence / sSum;
                     pressure = pressure * OVER_RELAX_CONST;
-                    p[y][x] = pc * pressure;
+                    p[y][x] += pc * pressure;
 
                     u[y][x]     -=      s[y][x - 1]     * pressure;
                     u[y][x + 1] +=      s[y][x + 1]     * pressure;
@@ -222,7 +243,7 @@ public class Liquid extends GameWindow{
             if(SCENE == 1){ //If wind tunnel then outflow conditions apply!
                 u[y][xCells - 2] = u[y][xCells - 3];
                 d[y][xCells - 2] = d[y][xCells - 3];
-
+                p[y][xCells - 2] = d[y][xCells - 3];
             }
         }
     
@@ -375,14 +396,42 @@ public class Liquid extends GameWindow{
         d = newD.clone();
     }
 
-
-
+    public float adjustDt(float dt) {
+        // Find the maximum velocity magnitude in the grid
+        float maxU = 0.0f;
+        float maxV = 0.0f;
+    
+        for (int y = 1; y < yCells - 1; y++) {
+            for (int x = 1; x < xCells - 1; x++) {
+                if (s[y][x] == 0) continue; // Skip walls
+    
+                maxU = Math.max(maxU, Math.abs(u[y][x]));
+                maxV = Math.max(maxV, Math.abs(v[y][x]));
+            }
+        }
+    
+        // Calculate the CFL number
+        float cflX = (maxU * dt) / cellWidth;
+        float cflY = (maxV * dt) / cellHeight;
+        float cfl = cflX + cflY;
+    
+        // Define the maximum allowed CFL number
+        float maxCFL = 1.0f; // Can be relaxed for Semi-Lagrangian, but 1 is a safe default
+    
+        // Adjust dt if the CFL condition is violated
+        if (cfl > maxCFL) {
+            dt = dt * (maxCFL / cfl); // Scale dt to satisfy the CFL condition
+            //System.out.println("CFL condition violated! Adjusted dt to: " + dt);
+        }
+    
+        return dt;
+    }
+    
     public void updateLiquid(double deltaTime){
         float dt = (float) deltaTime;
-
+        dt = adjustDt(dt);
         addForces(dt);
 
-        boundaryFix(dt);
         solveCompression(dt); //More or less works in a grav tank.
         boundaryFix(dt);
 
@@ -436,7 +485,7 @@ public class Liquid extends GameWindow{
     public void densityColorUpdate(){
             // Assuming pMin and pMax are the minimum and maximum pressure values in the grid
             float dMin = 0.0f;
-            float dMax = 10.0f;
+            float dMax = 200.0f;
             
             // Second pass to update colors based on normalized pressure
             for (int y = 0; y < yCells; y++) {
@@ -449,10 +498,15 @@ public class Liquid extends GameWindow{
                     float normalizedPressure = (d[y][x] - dMin) / (dMax - dMin);
     
                     // Map normalized pressure to color range [0, 255]
-                    int red = (int) (255 * normalizedPressure);
-                    int blue = 255 - red;
-                    int green = (int) (red/3); // Or adjust based on your needs
+                    // int red = (int) (255 * normalizedPressure);
+                    // int blue = 255 - red;
+                    // int green = (int) (red/3); // Or adjust based on your needs
     
+                    //GRAYSCALE
+                    int red = (int) (255 * normalizedPressure);
+                    int blue = red;
+                    int green = red; // Or adjust based on your needs
+
                     // Ensure color values are within [0, 255]
                     red = Math.min(255, Math.max(0, red));
                     blue = Math.min(255, Math.max(0, blue));
@@ -554,7 +608,7 @@ public class Liquid extends GameWindow{
     public void drawStreamlines(Graphics2D g) {
         
         int streamAmount = 100;
-        int streamLength = 3;
+        int streamLength = 10;
     
         // Precompute step sizes
         int xStep = GameWindow.gameWidth / streamAmount;

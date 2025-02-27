@@ -10,7 +10,7 @@ public class GameWindow extends JPanel implements Runnable {
     static int gameHeight = 1000; // gameRowAmount*ActualTileSize;
 
     
-    int FPS = 60;
+    int FPS = 144;
 
     /*
      *  FUN STUFF!
@@ -90,10 +90,9 @@ public class GameWindow extends JPanel implements Runnable {
 
         //Draw Streamlines
         graphics.setColor(Color.WHITE);
-        l.drawStreamlines(graphics);
+        //l.drawStreamlines(graphics);
 
     }
-    
 
     public void update(double dt){      
         //Update the Cell
@@ -119,4 +118,3 @@ public class GameWindow extends JPanel implements Runnable {
     }
 
 }
-//hi
