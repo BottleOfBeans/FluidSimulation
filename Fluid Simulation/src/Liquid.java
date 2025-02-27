@@ -48,11 +48,11 @@ public class Liquid extends GameWindow{
      * CONTAINER 3: PEGS
      */
 
-    final int SCENE = 1;
+    final int SCENE = 2;
     final int CONTAINER = 1;
 
-    final int XCELLS = 198;
-    final int YCELLS = 198;
+    final int XCELLS = 200;
+    final int YCELLS = 200;
 
     final float VECTOR_LINE_SCALE = 0.5f;
 
@@ -60,8 +60,8 @@ public class Liquid extends GameWindow{
     final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
     final float DENSITY = 100.0f;
 
-    final float WIND_TUNNEL_SPEED = 500.0f;
-    final float DENSITY_STREAM_SPEED = 15.0f;
+    final float WIND_TUNNEL_SPEED = 100000.0f;
+    final float DENSITY_STREAM_SPEED = 1.0f;
 
     final int ITER = 200;
 
@@ -115,6 +115,13 @@ public class Liquid extends GameWindow{
                 cells[y][x] = new Rectangle2D.Float(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
                 colors[y][x] = Color.black;
 
+
+                //Check if a Boundary
+                if(y == 0 || x == 0 || y == yCells-1 || x == xCells-1){
+                    s[y][x] = 0; // Set the scalar value to show that it is a wall. 
+                    colors[y][x] = Color.DARK_GRAY;
+                }
+                
                 /*
                  * Special Cases!
                  */
@@ -125,18 +132,25 @@ public class Liquid extends GameWindow{
                     ; 
                 }
                 else if (CONTAINER == 1){ // Container is a sphere
-                    int radius = 20;
-                    Vector2 centerPos = new Vector2(xCells/2 - 40, yCells/2);
+                    int radius = 40;
+                    Vector2 centerPos = new Vector2(xCells/2 - 10, yCells/2);
                     Vector2 currentPos = new Vector2(x,y);
                     if(currentPos.subtract(centerPos).magnitude() < radius){
                         s[y][x] = 0;
                         colors[y][x] = Color.GRAY;
                     }
     
-                    //Check if a Boundary
-                    if(y == 0 || x == 0 || y == yCells-1 || x == xCells-1){
-                        s[y][x] = 0; // Set the scalar value to show that it is a wall. 
-                        colors[y][x] = Color.DARK_GRAY;
+                }
+                else if (CONTAINER == 2){
+                    if(y % 20 == 0 && x % 10 == 0 && x != xCells-1 && x!= 0 && y != yCells-1 && y != 0){
+                        for(int i = 0; i < 5; i++){
+                            for(int j = 0; j < 15; j++){
+                                
+                                s[y + j][x + i] = 0;
+                                colors[y + j][x + i] = Color.GRAY;
+                            
+                            }
+                        }
                     }
                 }
 
@@ -194,7 +208,7 @@ public class Liquid extends GameWindow{
                     Random rand = new Random();
                     int offset = rand.nextInt(6) - 3;
                     if(y == (int) (yCells/2 - offset) && x == 1){
-                        d[y + offset][x] = DENSITY_STREAM_SPEED;
+                        d[y + offset][x] += DENSITY_STREAM_SPEED;
                         u[y + offset][x] += WIND_TUNNEL_SPEED;
                     }             
                 }
@@ -221,7 +235,7 @@ public class Liquid extends GameWindow{
 
                     float pressure = -divergence / sSum;
                     pressure = pressure * OVER_RELAX_CONST;
-                    p[y][x] += pc * pressure;
+                    p[y][x] = pc * pressure;
 
                     u[y][x]     -=      s[y][x - 1]     * pressure;
                     u[y][x + 1] +=      s[y][x + 1]     * pressure;
@@ -438,7 +452,7 @@ public class Liquid extends GameWindow{
         advectVelocities(dt);
         advectDensity(dt);
 
-        densityColorUpdate();
+        pressureColorUpdate();
     }
     //Visualization Code!
     
