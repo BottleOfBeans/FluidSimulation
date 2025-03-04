@@ -12,6 +12,8 @@ public class Main {
          */
         JFrame window = new JFrame();
         
+        System.setProperty("sun.java2d.opengl", "true");
+
         // Closing the window on the X button click
         window.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         // Window can be adjusted

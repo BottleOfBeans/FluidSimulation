@@ -1,4 +1,6 @@
 import java.awt.*;
+import java.awt.image.BufferedImage;
+
 import javax.swing.*;
 
 public class GameWindow extends JPanel implements Runnable {
@@ -67,11 +69,12 @@ public class GameWindow extends JPanel implements Runnable {
 
     public void updateDisplay(Graphics2D graphics){
         
+        BufferedImage buffer = new BufferedImage(gameWidth, gameHeight, BufferedImage.TYPE_INT_ARGB);
+
         for(int i = 0; i < l.getHeight(); i++){ // Displaying all the nice little cells!
             for(int j = 0; j < l.getWidth(); j++){
-
-                graphics.setColor(l.getColor(i, j));
-                graphics.fill(l.getCell(i,j));
+                graphics.setColor(l.getColor(i,j));
+                graphics.fill(l.getCell(i, j));
 
                 // //Grid Lines
                 // graphics.setColor(Color.BLACK);
@@ -82,14 +85,9 @@ public class GameWindow extends JPanel implements Runnable {
                 // graphics.draw(l.getHorizontalLine(i, j));
                 // graphics.draw(l.getVerticalLine(i, j));
 
-
             }
-
-
         }
-
-        //Draw Streamlines
-        graphics.setColor(Color.WHITE);
+        graphics.drawImage(buffer, 0, 0, null);
         //l.drawStreamlines(graphics);
 
     }
