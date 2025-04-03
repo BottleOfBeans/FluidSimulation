@@ -50,7 +50,7 @@ public class Liquid extends GameWindow{
      */
 
     final int SCENE = 1;
-    final int CONTAINER = 1;
+    final int CONTAINER = 2;
 
     final int XCELLS = 250;
     final int YCELLS = 250;
@@ -61,10 +61,10 @@ public class Liquid extends GameWindow{
     final float OVER_RELAX_CONST = 1.9f;  //Set between 1 and 2.
     final float DENSITY = 100.0f;
 
-    final float WIND_TUNNEL_SPEED = 100.0f;
+    final float WIND_TUNNEL_SPEED = 50.0f;
     final float DENSITY_STREAM_SPEED = 5.0f;
 
-    final int ITER = 100;
+    final int ITER = 20;
     int CTER = 0;
     
         //DO NOT TOUCH!
@@ -152,7 +152,7 @@ public class Liquid extends GameWindow{
                         ; 
                     }
                     else if (CONTAINER == 1){ // Container is a sphere
-                        int radius = 50;
+                        int radius = 20;
                         Vector2 centerPos = new Vector2(xCells/2 - 20, yCells/2);
                         Vector2 currentPos = new Vector2(x,y);
                         if(currentPos.subtract(centerPos).magnitude() <= radius+ 3){
@@ -161,17 +161,33 @@ public class Liquid extends GameWindow{
                         }
         
                     }
-                    else if (CONTAINER == 2){
-                        int radius = 50;
-                        Vector2 centerPos = new Vector2(xCells/2, yCells/2);
-                        Vector2 currentPos = new Vector2(x,y);
-                        if(currentPos.subtract(centerPos).magnitude() <= radius+ 3 && currentPos.subtract(centerPos).magnitude() >= radius - 3 && x > centerPos.x - radius/2){
+                    else if (CONTAINER == 2){ // Container is an airfoil
+                        int length = 100;
+                        Vector2 leadingEdge = new Vector2(xCells/2 - 100, yCells/2); // Approximate center
+                    
+                        Vector2 currentPos = new Vector2(x, y);
+                        double xRel = currentPos.x - leadingEdge.x;
+                        double yRel = currentPos.y - leadingEdge.y;
+                    
+                        // NACA-like symmetric airfoil shape equation (approximation)
+                        double thickness = 0.12; // Adjust for different airfoil shapes
+                        double chord = length;
+                        double maxHeight = thickness * chord; 
+                    
+                        double yUpper = (maxHeight / 0.2) * (0.2969 * Math.sqrt(xRel / chord) 
+                                       - 0.126 * (xRel / chord) 
+                                       - 0.3516 * Math.pow(xRel / chord, 2) 
+                                       + 0.2843 * Math.pow(xRel / chord, 3) 
+                                       - 0.1015 * Math.pow(xRel / chord, 4));
+                    
+                        double yLower = -yUpper; // Symmetric airfoil
+                    
+                        if (xRel >= 0 && xRel <= length && yRel >= yLower && yRel <= yUpper) {
                             s[y][x] = 0;
                             colors[y][x] = Color.DARK_GRAY;
                         }
                     }
-    
-    
+                    
                 }
             }
             
@@ -416,6 +432,8 @@ public class Liquid extends GameWindow{
         
                         grayscale = Math.min(255, Math.max(0, grayscale));
         
+                        //int pressureAdjuster = (int) Math.min(255, Math.max(0, grayscale * p[y][x]));    
+
                         colors[y][x] = new Color(grayscale, grayscale, grayscale);
                     }
                 }
@@ -426,9 +444,19 @@ public class Liquid extends GameWindow{
     
         public void densityHandler(int count){
             if(SCENE == 1){
-                if(count % 40 == 0){
-                    for(int i = 0; i < yCells; i++){
-                        d[i][2] += DENSITY_STREAM_SPEED;
+
+                int streamSize = 20;
+
+                for(int y = 0; y < yCells; y++){
+                    if(y == (int) (yCells/2 + 20)){
+                        for(int i = 0; i < streamSize; i++){
+                            d[y][2] = DENSITY_STREAM_SPEED;
+                        }
+                    }
+                    if(y == (int) (yCells/2 - 20)){
+                        for(int i = 0; i < streamSize; i++){
+                            d[y][2] = DENSITY_STREAM_SPEED;
+                        }
                     }
                 }
             }
@@ -491,11 +519,11 @@ public class Liquid extends GameWindow{
 
         //System.out.println(CTER);
 
-        //pressureColorUpdate();
+        pressureColorUpdate();
         
 
         densityHandler(CTER);
-        if(CTER >= 100){
+        if(CTER >= 1000){
             CTER = 0;
         }
 
@@ -631,15 +659,15 @@ public class Liquid extends GameWindow{
     
     public void drawStreamlines(Graphics2D g) {
         // Parameters from JS code
-        float segLen = cellHeight * 0.2f; // Equivalent to f.h * 0.2
+        float segLen = cellHeight * 0.5f; // Equivalent to f.h * 0.2
         int numSegs = 100; // Number of segments per streamline
     
         // Set stroke color (equivalent to c.strokeStyle = "#000000")
         g.setColor(Color.WHITE);
     
         // Loop through the grid (equivalent to JS loops)
-        for (int i = 1; i < xCells - 1; i += 5) {
-            for (int j = 1; j < yCells - 1; j += 5) {
+        for (int i = 1; i < xCells - 1; i += segLen) {
+            for (int j = 1; j < yCells - 1; j += segLen) {
                 // Starting point of the streamline (equivalent to (i + 0.5) * f.h)
                 float x = (i + 0.5f) * cellWidth;
                 float y = (j + 0.5f) * cellHeight;
@@ -655,8 +683,8 @@ public class Liquid extends GameWindow{
                     float vVel = sampleField(x, y, "VFIELD");
     
                     // Update the position (equivalent to x += u * 0.01; y += v * 0.01)
-                    x += uVel * 0.01f;
-                    y += vVel * 0.01f;
+                    x += uVel * 0.1;
+                    y += vVel * 0.1f;
     
                     // Break if the streamline goes out of bounds (equivalent to if (x > f.numX * f.h))
                     if (x > xCells * cellWidth) {
