@@ -162,7 +162,7 @@ public class Liquid extends GameWindow{
     
                 }
                 else if (CONTAINER == 2){ // Container is an airfoil
-                    int length = 400;
+                    int length = 250;
                     Vector2 leadingEdge = new Vector2(xCells/2 - 100, yCells/2); // Approximate center
                 
                     Vector2 currentPos = new Vector2(x, y);
@@ -445,17 +445,26 @@ public class Liquid extends GameWindow{
     public void densityHandler(int count){
         if(SCENE == 1){
 
-            int streamSize = 20;
+            int streamSize = 15;
 
+            // System.out.println(CTER);
+
+            // if(CTER % 10 == 0){
+            //     for(int y = 0; y < yCells; y++){
+            //         d[y][2] = DENSITY_STREAM_SPEED;
+            //     }
+            // }
+
+            
             for(int y = 0; y < yCells; y++){
-                if(y == (int) (yCells/2 + 20)){
+                if(y == (int) (yCells/2 + 5)){
                     for(int i = 0; i < streamSize; i++){
-                        d[y][2] = DENSITY_STREAM_SPEED;
+                        d[y + i][3] += DENSITY_STREAM_SPEED;
                     }
                 }
-                if(y == (int) (yCells/2 - 20)){
+                if(y == (int) (yCells/2 - 5)){
                     for(int i = 0; i < streamSize; i++){
-                        d[y][2] = DENSITY_STREAM_SPEED;
+                        d[y - i][3] += DENSITY_STREAM_SPEED;
                     }
                 }
             }
@@ -523,7 +532,7 @@ public class Liquid extends GameWindow{
     
 
     densityHandler(CTER);
-    if(CTER >= 1000){
+    if(CTER >= 100){
         CTER = 0;
     }
 
