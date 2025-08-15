@@ -2,6 +2,7 @@ import java.awt.*;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
+import java.util.Arrays;
 import java.util.Random;
 
 /*
@@ -64,7 +65,7 @@ public class Liquid extends GameWindow{
     final float WIND_TUNNEL_SPEED = 50.0f;
     final float DENSITY_STREAM_SPEED = 5.0f;
 
-    final int ITER = 20;
+    final int ITER = 10;
     int CTER = 0;
 
     //DO NOT TOUCH!
@@ -199,38 +200,29 @@ public class Liquid extends GameWindow{
         */
 
     @SuppressWarnings("unused")
-    public void addForces(float dt){
-
-        Random random = new Random();
-
-
-        for(int y = 0; y < yCells; y ++){
-            for(int x = 0; x < xCells; x++){
-                
-                if(SCENE == 0){ //GRAVITY TANK
-                    if(s[y][x] == 1 && s[y - 1][x] != 0){
-                        v[y][x] += GRAVITY;
+    public void addForces(float dt) {
+        for (int y = 0; y < yCells; y++) {
+            for (int x = 0; x < xCells; x++) {
+                if (SCENE == 0) { // GRAVITY TANK
+                    // ADDED POST RELEASE FIX: guard y>0 and scale by dt
+                    if (y > 0 && s[y][x] == 1 && s[y - 1][x] != 0) {
+                        v[y][x] += GRAVITY * dt;
                     }
-                    if(y == yCells-2 && x < 80 && x > 20){
+                    if (y == yCells - 2 && x < 80 && x > 20) {
                         d[y][x] += 0.5f;
                     }
-                } 
-                else if (SCENE == 1){ // WIND TUNNEL
-                    if(x == 1 && y != 0 && y != yCells-1){ // Inflow
+                } else if (SCENE == 1) { // WIND TUNNEL
+                    if (x == 1 && y != 0 && y != yCells - 1) {
                         v[y][x] = 0;
-                        u[y][x] = relativeWindSpeed;
+                        u[y][x] = relativeWindSpeed; // keep inflow at x=1
                         d[y][1] = 0.0f;
                     }
-                }
-                else if (SCENE == 2){//VELOCITY INJECTOR
-                    Random rand = new Random(21312334);
-                    if(y == (int)(yCells/2) && x == (int)(xCells/2)){
-
+                } else if (SCENE == 2) {
+                    if (y == (int)(yCells / 2) && x == (int)(xCells / 2)) {
                         u[y][x] = 5.0f;
                         d[y][x] = 5.0f;
-                    }           
+                    }
                 }
-                
             }
         }
     }
@@ -269,25 +261,29 @@ public class Liquid extends GameWindow{
     public void boundaryFix(float dt) {
         // Horizontal velocity (u) boundaries
         for (int y = 0; y < yCells; y++) {
-            u[y][0] = u[y][1] ; // Left boundary
-            u[y][xCells - 1] = u[y][xCells-2]; // Right boundary            
-
-            if(SCENE == 1){ //If wind tunnel then outflow conditions apply!
-                u[y][xCells - 1] = WIND_TUNNEL_SPEED;
-                d[y][xCells - 1] = d[y][xCells - 2];
-                p[y][xCells - 1] = p[y][xCells - 2];
+            // POST RELEASE FIX: left = inflow (if wind tunnel), otherwise copy interior
+            if (SCENE == 1) {
+                u[y][0] = relativeWindSpeed;
+                v[y][0] = 0f;
+                d[y][0] = d[y][1];
+                p[y][0] = p[y][1];
+            } else {
+                u[y][0] = u[y][1];
             }
+    
+            // POST RELEASE FIX: right = outflow (zero-gradient)
+            u[y][xCells - 1] = u[y][xCells - 2];
+            v[y][xCells - 1] = v[y][xCells - 2];
+            d[y][xCells - 1] = d[y][xCells - 2];
+            p[y][xCells - 1] = p[y][xCells - 2];
         }
     
-        // Vertical velocity (v) boundaries
+        // Vertical velocity (v) + top/bottom no-slip
         for (int x = 0; x < xCells; x++) {
-            v[0][x] = 0; // Top boundary
-            v[yCells - 1][x] = 0; // Bottom boundary
-
-            u[0][x] = 0; // Top boundary
-            u[yCells - 1][x] = 0; // Bottom boundary
-
-            
+            v[0][x] = 0;           // top boundary
+            v[yCells - 1][x] = 0;  // bottom boundary
+            u[0][x] = 0;
+            u[yCells - 1][x] = 0;
         }
     }
 
@@ -362,83 +358,136 @@ public class Liquid extends GameWindow{
     }
 
     public void advectVelocities(float dt) {
-        for (int y = 0; y < yCells - 1; y++) {
-            for (int x = 0; x < xCells - 1; x++) {
-                if (s[y][x] == 0) continue; // Skip walls
-    
-                if(s[y][x - 1] != 0){
-                    // Advect horizontal velocity (u)
-                    float xPosU = x * cellWidth;
-                    float yPosU = (y + 0.5f) * cellHeight;
-        
-                    float uVel = u[y][x];
-                    float vVel = averageV(x, y);
-        
-                    xPosU -= uVel * dt;
-                    yPosU -= vVel * dt;
+        // Make stable copies to sample from
+        float[][] u0 = new float[yCells][xCells];
+        float[][] v0 = new float[yCells][xCells];
+        for (int y = 0; y < yCells; y++) {
+            System.arraycopy(u[y], 0, u0[y], 0, xCells);
+            System.arraycopy(v[y], 0, v0[y], 0, xCells);
+        }
 
-                    newU[y][x] = sampleField(xPosU, yPosU, "UFIELD");
-                }
-    
-    
-                if(s[y - 1][x] != 0){
-                    // Advect vertical velocity (v)
-                    float xPosV = (x + 0.5f) * cellWidth;
-                    float yPosV = y * cellHeight;
-        
-                    float uVel = averageU(x, y);
-                    float vVel = v[y][x];
-        
-                    xPosV -= uVel * dt;
-                    yPosV -= vVel * dt;
-        
-                    newV[y][x] = sampleField(xPosV, yPosV, "VFIELD");
-                }
+        // FIX: iterate only interior (avoid x-1, y-1 OOB access)
+        for (int y = 1; y < yCells - 1; y++) {
+            for (int x = 1; x < xCells - 1; x++) {
+                if (s[y][x] == 0) { newU[y][x] = 0; newV[y][x] = 0; continue; }
 
+                // Advect u at vertical face (centered at (x, y+0.5))
+                float xPosU = x * cellWidth;
+                float yPosU = (y + 0.5f) * cellHeight;
+                float uVel = u0[y][x];
+                float vVel = 0.25f * (v0[y][x - 1] + v0[y][x] + v0[y + 1][x - 1] + v0[y + 1][x]);
+                xPosU -= uVel * dt;
+                yPosU -= vVel * dt;
+                newU[y][x] = sampleField(xPosU, yPosU, "UFIELD"); // samples old field
+
+                // Advect v at horizontal face (centered at (x+0.5, y))
+                float xPosV = (x + 0.5f) * cellWidth;
+                float yPosV = y * cellHeight;
+                float uBar = 0.25f * (u0[y - 1][x] + u0[y][x] + u0[y - 1][x + 1] + u0[y][x + 1]);
+                float vBar = v0[y][x];
+                xPosV -= uBar * dt;
+                yPosV -= vBar * dt;
+                newV[y][x] = sampleField(xPosV, yPosV, "VFIELD"); // samples old field
             }
         }
-    
-        // Update velocities
-        u = newU.clone();
-        v = newV.clone();
 
-    }        
+        for (int y = 1; y < yCells - 1; y++) {
+            System.arraycopy(newU[y], 1, u[y], 1, xCells - 2);
+            System.arraycopy(newV[y], 1, v[y], 1, xCells - 2);
+            Arrays.fill(newU[y], 1, xCells - 1, 0f);
+            Arrays.fill(newV[y], 1, xCells - 1, 0f);
+        }
+}
     
     public void advectDensity(float dt) {
         float[][] tempD = new float[yCells][xCells];
-    
+
         for (int y = 1; y < yCells - 1; y++) {
             for (int x = 1; x < xCells - 1; x++) {
                 if (s[y][x] == 0) continue; // Skip walls
-    
+
                 float uVel = 0.5f * (u[y][x] + u[y][x + 1]);
                 float vVel = 0.5f * (v[y][x] + v[y + 1][x]);
-    
-                float xPos = (x + 0.5f) * cellWidth - uVel * dt * 5;
-                float yPos = (y + 0.5f) * cellHeight - vVel * dt * 5;
-    
-                xPos = Math.max(cellWidth * 0.5f, Math.min(xPos, (xCells - 1.5f) * cellWidth));
-                yPos = Math.max(cellHeight * 0.5f, Math.min(yPos, (yCells - 1.5f) * cellHeight));
-    
-                tempD[y][x] = sampleField(xPos, yPos, "DFIELD");
-    
-                if(tempD[y][x] > 0){
-                    float dMin = 0.0f;
-                    float dMax = 5.0f;        
-    
-                    float normalizedPressure = (tempD[y][x] - dMin) / (dMax - dMin);
-    
-                    int grayscale = (int) (255 * normalizedPressure);
-    
-                    grayscale = Math.min(255, Math.max(0, grayscale));
-    
-                    //int pressureAdjuster = (int) Math.min(255, Math.max(0, grayscale * p[y][x]));    
 
-                    colors[y][x] = new Color(grayscale, grayscale, grayscale);
-                }
+                float xPos = (x + 0.5f) * cellWidth  - uVel * dt; 
+                float yPos = (y + 0.5f) * cellHeight - vVel * dt;
+
+                xPos = Math.max(cellWidth  * 0.5f, Math.min(xPos, (xCells - 1.5f) * cellWidth));
+                yPos = Math.max(cellHeight * 0.5f, Math.min(yPos, (yCells - 1.5f) * cellHeight));
+
+                tempD[y][x] = sampleField(xPos, yPos, "DFIELD");
             }
         }
-    
+
+        // --- 2) Min/Max for normalization ---
+        float dMin = Float.MAX_VALUE, dMax = Float.MIN_VALUE;
+        float pMin = Float.MAX_VALUE, pMax = Float.MIN_VALUE;
+        for (int y = 1; y < yCells - 1; y++) {
+            for (int x = 1; x < xCells - 1; x++) {
+                if (s[y][x] == 0) continue;
+                float dv = tempD[y][x];
+                dMin = Math.min(dMin, dv);
+                dMax = Math.max(dMax, dv);
+                float pv = p[y][x];
+                pMin = Math.min(pMin, pv);
+                pMax = Math.max(pMax, pv);
+            }
+        }
+        float eps = 1e-6f;
+        float dRange = Math.max(eps, dMax - dMin);
+        float pRange = Math.max(eps, pMax - pMin);
+
+        // --- 3) Color mapping: pressure as faint background, dye bright in front ---
+        // Tuning knobs 
+        final float PRESSURE_BLEND = 0.50f;   // how visible pressure is 
+        final float PRESSURE_SAT   = 1.00f;   // pressure tint saturation 
+        final float PRESSURE_VAL   = 0.25f;   // pressure tint brightness 
+        final float DYE_FLOOR      = 0.08f; 
+        final float DYE_GAMMA      = 0.70f;  
+
+        for (int y = 1; y < yCells - 1; y++) {
+            for (int x = 1; x < xCells - 1; x++) {
+                if (s[y][x] == 0) {
+                    colors[y][x] = Color.DARK_GRAY; // obstacle remains clearly visible
+                    continue;
+                }
+
+                // Normalize fields
+                float dv = tempD[y][x];
+                float dyeNorm = (dv - dMin) / dRange;           // 0..1
+                dyeNorm = Math.max(0f, Math.min(1f, dyeNorm));
+                // "Lit" dye brightness: boosted mid-tones, with a small floor
+                float dyeVal = DYE_FLOOR + (1f - DYE_FLOOR) * (float)Math.pow(dyeNorm, DYE_GAMMA);
+
+                float presNorm = (p[y][x] - pMin) / pRange;     // 0..1
+                presNorm = Math.max(0f, Math.min(1f, presNorm));
+
+                // Pressure hue: low → blue (240°), high → red (0°)
+                float hue = (1.0f - presNorm) * (240f / 360f);  // map to H in [0..1]
+
+                // Compute pressure tint (dim & desaturated)
+                int presRGB = Color.HSBtoRGB(hue, PRESSURE_SAT, PRESSURE_VAL);
+                int pr = (presRGB >> 16) & 0xFF;
+                int pg = (presRGB >> 8)  & 0xFF;
+                int pb = (presRGB)       & 0xFF;
+
+                // Compute dye color (bright grayscale “in front”)
+                int dyeRGB = Color.HSBtoRGB(0f, 0f, dyeVal);
+                int dr = (dyeRGB >> 16) & 0xFF;
+                int dg = (dyeRGB >> 8)  & 0xFF;
+                int db = (dyeRGB)       & 0xFF;
+
+                // Pre-blend: final = mix(dye, pressureTint, PRESSURE_BLEND) but with dye dominant
+                float w = 1f - PRESSURE_BLEND; // ~0.88 dye, ~0.12 pressure
+                int r = Math.min(255, Math.max(0, Math.round(w * dr + (1f - w) * pr)));
+                int g = Math.min(255, Math.max(0, Math.round(w * dg + (1f - w) * pg)));
+                int b = Math.min(255, Math.max(0, Math.round(w * db + (1f - w) * pb)));
+
+                colors[y][x] = new Color(r, g, b);
+            }
+        }
+
+        // --- 4) Commit dye field ---
         d = tempD;
     }
 
@@ -473,70 +522,58 @@ public class Liquid extends GameWindow{
     }
 
     public float adjustDt(float dt) {
-        // Find the maximum velocity magnitude in the grid
-        float maxU = 0.0f;
-        float maxV = 0.0f;
-    
+        float maxU = 0.0f, maxV = 0.0f;
         for (int y = 1; y < yCells - 1; y++) {
             for (int x = 1; x < xCells - 1; x++) {
-                if (s[y][x] == 0) continue; // Skip walls
-    
+                if (s[y][x] == 0) continue;
                 maxU = Math.max(maxU, Math.abs(u[y][x]));
                 maxV = Math.max(maxV, Math.abs(v[y][x]));
             }
         }
-    
-        // Calculate the CFL number
         float cflX = (maxU * dt) / cellWidth;
         float cflY = (maxV * dt) / cellHeight;
-        float cfl = cflX + cflY;
-    
-        // Define the maximum allowed CFL number
-        float maxCFL = 1.0f; // Can be relaxed for Semi-Lagrangian, but 1 is a safe default
-    
-        // Adjust dt if the CFL condition is violated
+                
+        float cfl = Math.max(cflX, cflY);  
+
+        //AFTER PATCH FIX: let semi-Lagrangian run “looser”
+        float maxCFL = 3.0f;                // was 1.0f
+
         if (cfl > maxCFL) {
-            dt = dt * (maxCFL / cfl); // Scale dt to satisfy the CFL condition
-            //System.out.println("CFL condition violated! Adjusted dt to: " + dt);
+            dt = dt * (maxCFL / cfl);
         }
-    
         return dt;
+
     }
     
-    public void updateLiquid(double deltaTime){
-        
-    CTER ++;
+    public void updateLiquid(double deltaTime) {
+        CTER++;
+        float dt = (float) deltaTime;
+        dt = adjustDt(dt);
     
-    float dt = (float) deltaTime;
-    dt = adjustDt(dt);
-    addForces(dt);
-
-
-    //Reset Pressure
-    for (int i = 0; i < xCells; i++) {
-        for (int j = 0; j < yCells; j++) {
-            p[j][i] = 0.0f;
+        addForces(dt);
+    
+        // Clear pressure
+        for (int i = 0; i < xCells; i++) {
+            for (int j = 0; j < yCells; j++) {
+                p[j][i] = 0.0f;
+            }
         }
-    }
     
-
-    solveCompression(dt); //More or less works in a grav tank.
-    boundaryFix(dt);
-
-    advectVelocities(dt);
-    advectDensity(dt);
-
-    //System.out.println(CTER);
-
-    //pressureColorUpdate();
+        // First projection 
+        solveCompression(dt);
+        boundaryFix(dt);
     
-
-    densityHandler(CTER);
-    if(CTER >= 100){
-        CTER = 0;
+        // Advect and then project once more to remove new divergence
+        advectVelocities(dt);
+        boundaryFix(dt);
+        solveCompression(dt);     // FIX: extra projection
+        boundaryFix(dt);
+    
+        advectDensity(dt);
+        densityHandler(CTER);
+        if (CTER >= 100) CTER = 0;
     }
-
-}
+        
     //Visualization Code!
     
     public void pressureColorUpdate(){

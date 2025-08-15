@@ -12,7 +12,7 @@ public class GameWindow extends JPanel implements Runnable {
     static int gameHeight = 1000; // gameRowAmount*ActualTileSize;
 
     
-    int FPS = 60;
+    int FPS = 144;
 
     /*
      *  FUN STUFF!
